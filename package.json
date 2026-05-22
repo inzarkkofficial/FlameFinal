@@ -1,0 +1,18 @@
+{
+  "name": "flame-project",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "Frontend",
+    "Backend"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "npm run dev --workspace flame-frontend",
+    "dev:backend": "npm run dev --workspace flame-backend",
+    "server": "npm run start --workspace flame-backend",
+    "start": "npm run start --workspace flame-backend",
+    "build": "npm run build --workspace flame-frontend",
+    "preview": "npm run preview --workspace flame-frontend"
+  }
+}

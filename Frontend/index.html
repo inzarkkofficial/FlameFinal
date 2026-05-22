@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Flame - Dating App</title>
+    <meta name="description" content="Flame dating app - swipe, match, chat. Built with React.js." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <script>
+      (() => {
+        try {
+          const stored = window.localStorage.getItem("flame-theme");
+          const theme = stored === "light" || stored === "dark"
+            ? stored
+            : window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        } catch {
+          document.documentElement.dataset.theme = "dark";
+          document.documentElement.style.colorScheme = "dark";
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

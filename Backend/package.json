@@ -1,0 +1,20 @@
+{
+  "name": "flame-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node --check server/server.js && node --check server/database.js && node --check scripts/reset-password.js",
+    "dev": "nodemon server/server.js",
+    "start": "node server/server.js",
+    "reset-password": "node scripts/reset-password.js"
+  },
+  "dependencies": {
+    "livekit-server-sdk": "^2.15.3",
+    "mongodb": "^7.2.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

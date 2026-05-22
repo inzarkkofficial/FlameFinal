@@ -1,0 +1,9 @@
+node_modules/
+Frontend/dist/
+.flame-data/
+Backend/server/data/
+Backend/server/*.log
+*.log
+.vercel/
+tools/*.exe
+.env
