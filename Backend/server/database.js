@@ -56,6 +56,31 @@ const defaultState = {
   events: []
 };
 
+const PUBLIC_USER_PROJECTION = {
+  _id: 0,
+  id: 1,
+  email: 1,
+  joinedAt: 1,
+  lastLoginAt: 1,
+  lastActiveAt: 1,
+  "state.user.fullName": 1,
+  "state.user.age": 1,
+  "state.user.location": 1,
+  "state.user.bio": 1,
+  "state.user.image": 1,
+  "state.user.background": 1,
+  "state.user.gender": 1,
+  "state.user.interestedIn": 1,
+  "state.user.interests": 1,
+  "state.user.zodiacSign": 1,
+  "state.user.work": 1,
+  "state.user.school": 1,
+  "state.privacy": 1,
+  "state.likedIds": 1,
+  "state.blockedIds": 1,
+  "state.stories": 1
+};
+
 function passwordHash(password, salt = randomUUID()) {
   const hash = scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${hash}`;
@@ -920,6 +945,8 @@ export class FlameDatabase {
     const requestedDatastore = String(process.env.FLAME_DATASTORE || "").toLowerCase();
     const requestedMongo = ["mongo", "mongodb"].includes(requestedDatastore);
     this.mongoTimeoutMs = Math.max(requestedMongo ? 60000 : 1500, Number(process.env.MONGODB_TIMEOUT_MS) || 5000);
+    this.mongoSocketTimeoutMs = Math.max(0, Number(process.env.MONGODB_SOCKET_TIMEOUT_MS) || 0);
+    this.autoIndex = String(process.env.FLAME_AUTO_INDEX || "true").toLowerCase() !== "false";
     this.localDbPath = process.env.FLAME_LOCAL_DB_PATH || join(SERVER_DIR, "..", "..", ".flame-data", "flame users", "flame-users.json");
     this.forceLocal = ["local", "json", "file"].includes(requestedDatastore);
     this.forceMongo = requestedMongo;
@@ -932,7 +959,7 @@ export class FlameDatabase {
     return new MongoClient(this.uri, {
       serverSelectionTimeoutMS: this.mongoTimeoutMs,
       connectTimeoutMS: this.mongoTimeoutMs,
-      socketTimeoutMS: this.mongoTimeoutMs
+      socketTimeoutMS: this.mongoSocketTimeoutMs
     });
   }
 
@@ -971,28 +998,34 @@ export class FlameDatabase {
     this.supportTickets = this.db.collection("supportTickets");
     await this.db.command({ ping: 1 });
 
-    this.ensureIndexes().catch((error) => {
-      console.warn(`MongoDB index check failed: ${error.message}`);
-    });
+    if (this.autoIndex) {
+      this.ensureIndexes().catch((error) => {
+        console.warn(`MongoDB index check failed: ${error.message}`);
+      });
+    }
   }
 
   async ensureIndexes() {
-    await Promise.all([
-      this.users.createIndex({ email: 1 }, { unique: true }),
-      this.users.createIndex({ id: 1 }, { unique: true }),
-      this.sessions.createIndex({ token: 1 }, { unique: true }),
-      this.sessions.createIndex({ userId: 1 }),
-      this.sessions.createIndex({ lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }),
-      this.posts.createIndex({ id: 1 }, { unique: true }),
-      this.posts.createIndex({ authorId: 1 }),
-      this.posts.createIndex({ tags: 1 }),
-      this.posts.createIndex({ createdAt: -1 }),
-      this.supportTickets.createIndex({ userId: 1 }),
-      this.supportTickets.createIndex({ createdAt: -1 })
-    ]);
+    const indexSpecs = [
+      [this.users, { email: 1 }, { unique: true }],
+      [this.users, { id: 1 }, { unique: true }],
+      [this.sessions, { token: 1 }, { unique: true }],
+      [this.sessions, { userId: 1 }],
+      [this.sessions, { lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }],
+      [this.posts, { id: 1 }, { unique: true }],
+      [this.posts, { authorId: 1 }],
+      [this.posts, { tags: 1 }],
+      [this.posts, { createdAt: -1 }],
+      [this.supportTickets, { userId: 1 }],
+      [this.supportTickets, { createdAt: -1 }]
+    ];
+
+    for (const [collection, keys, options = {}] of indexSpecs) {
+      await collection.createIndex(keys, options);
+    }
 
     await Promise.all([
-      this.users.find({ id: { $ne: "" } }).limit(20).toArray(),
+      this.users.find({ id: { $ne: "" } }).project(PUBLIC_USER_PROJECTION).limit(20).toArray(),
       this.posts.find({}).sort({ createdAt: -1 }).limit(20).toArray()
     ]);
   }
@@ -1018,7 +1051,7 @@ export class FlameDatabase {
     const matchIds = visibleMatches.map((match) => match.profileId);
     const activeUserIds = await this.activeUserIds();
     const matchUsers = matchIds.length
-      ? await this.users.find({ id: { $in: matchIds } }).toArray()
+      ? await this.users.find({ id: { $in: matchIds } }).project(PUBLIC_USER_PROJECTION).toArray()
       : [];
     const storyViewerIds = Array.from(
       new Set(
@@ -1032,7 +1065,7 @@ export class FlameDatabase {
       )
     );
     const storyViewerUsers = storyViewerIds.length
-      ? await this.users.find({ id: { $in: storyViewerIds } }).toArray()
+      ? await this.users.find({ id: { $in: storyViewerIds } }).project(PUBLIC_USER_PROJECTION).toArray()
       : [];
     const storyViewerMap = new Map(storyViewerUsers.map((viewer) => [viewer.id, viewer]));
     const matchProfileMap = new Map(
@@ -1092,7 +1125,7 @@ export class FlameDatabase {
 
   async discoverProfiles(currentUser) {
     const normalizedCurrent = normalizeUser(currentUser);
-    const users = await this.users.find({ id: { $ne: normalizedCurrent.id } }).toArray();
+    const users = await this.users.find({ id: { $ne: normalizedCurrent.id } }).project(PUBLIC_USER_PROJECTION).toArray();
     const activeUserIds = await this.activeUserIds();
     const matchedIds = new Set(normalizedCurrent.state.matches.map((match) => match.profileId));
     const blockedIds = new Set(normalizedCurrent.state.blockedIds || []);
@@ -1134,7 +1167,7 @@ export class FlameDatabase {
     }
 
     const users = authorIds.size
-      ? await this.users.find({ id: { $in: Array.from(authorIds) } }).toArray()
+      ? await this.users.find({ id: { $in: Array.from(authorIds) } }).project(PUBLIC_USER_PROJECTION).toArray()
       : [];
     const userMap = new Map(users.map((user) => [user.id, normalizeUser(user)]));
     const activeUserIds = await this.activeUserIds();
