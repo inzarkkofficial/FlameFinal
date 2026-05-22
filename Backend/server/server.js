@@ -36,6 +36,7 @@ const db = new FlameDatabase();
 let io;
 let dbReady = false;
 let dbInitError = null;
+let dbInitPromise = null;
 const onlineUsers = new Map();
 const POST_REACTIONS = new Set(["love", "laugh", "wow", "sad", "angry", "care", "like", "fire"]);
 const POST_MEDIA_MAX_CHARS = 14_000_000;
@@ -1172,19 +1173,55 @@ function serveStatic(req, res, url) {
   createReadStream(filePath).pipe(res);
 }
 
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = normalizeRoutePath(url.pathname);
+export async function ensureDatabaseReady() {
+  if (dbReady) return true;
+
+  if (!dbInitPromise) {
+    dbInitError = null;
+    dbInitPromise = db
+      .init()
+      .then(() => {
+        dbReady = true;
+        dbInitError = null;
+        return true;
+      })
+      .catch((error) => {
+        dbReady = false;
+        dbInitError = error;
+        dbInitPromise = null;
+        console.error(`MongoDB connection failed: ${error.message}`);
+        return false;
+      });
+  }
+
+  return dbInitPromise;
+}
+
+export async function handleRequest(req, res, options = {}) {
   try {
+    if (options.initializeDatabase) await ensureDatabaseReady();
+
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const pathname = normalizeRoutePath(url.pathname);
     if (pathname.startsWith("/api/")) {
       url.pathname = pathname;
       await handleApi(req, res, url);
       return;
     }
-    serveStatic(req, res, url);
+
+    if (options.serveClient !== false) {
+      serveStatic(req, res, url);
+      return;
+    }
+
+    sendError(res, 404, "API route not found.");
   } catch (error) {
     sendError(res, error.status || 500, error.message || "Server error.");
   }
+}
+
+const server = createServer(async (req, res) => {
+  await handleRequest(req, res);
 });
 
 function setupRealtime() {
@@ -1405,19 +1442,23 @@ async function connectDatabaseWithRetry() {
   }
 }
 
-setupRealtime();
-server.on("error", (error) => {
-  if (error?.code === "EADDRINUSE") {
-    console.error(`Port ${PORT} is already in use. Another Flame backend is already running on this port.`);
-    console.error("Stop the existing backend process before starting a new one, or set a different PORT in Backend/.env.");
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isDirectRun) {
+  setupRealtime();
+  server.on("error", (error) => {
+    if (error?.code === "EADDRINUSE") {
+      console.error(`Port ${PORT} is already in use. Another Flame backend is already running on this port.`);
+      console.error("Stop the existing backend process before starting a new one, or set a different PORT in Backend/.env.");
+      process.exit(1);
+    }
+
+    console.error("Flame server error:", error);
     process.exit(1);
-  }
+  });
 
-  console.error("Flame server error:", error);
-  process.exit(1);
-});
-
-server.listen(PORT, () => {
-  console.log(`Flame website, API, and realtime messaging running on http://localhost:${PORT}`);
-});
-connectDatabaseWithRetry();
+  server.listen(PORT, () => {
+    console.log(`Flame website, API, and realtime messaging running on http://localhost:${PORT}`);
+  });
+  connectDatabaseWithRetry();
+}
