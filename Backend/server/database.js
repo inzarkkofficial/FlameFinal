@@ -1147,6 +1147,23 @@ export class FlameDatabase {
     return user ? normalizeUser(user) : null;
   }
 
+  async findUserAuthByEmail(email) {
+    return this.users.findOne(
+      { email: email.trim().toLowerCase() },
+      {
+        projection: {
+          _id: 0,
+          id: 1,
+          email: 1,
+          passwordHash: 1,
+          joinedAt: 1,
+          lastLoginAt: 1,
+          lastActiveAt: 1
+        }
+      }
+    );
+  }
+
   async findUserById(id) {
     const user = await this.users.findOne({ id });
     return user ? normalizeUser(user) : null;
@@ -1184,19 +1201,26 @@ export class FlameDatabase {
   }
 
   async login(email, password) {
-    const user = await this.findUserByEmail(email);
+    const user = await this.findUserAuthByEmail(email);
     if (!user || !verifyPassword(password, user.passwordHash)) return null;
 
-    user.lastLoginAt = Date.now();
-    user.lastActiveAt = user.lastLoginAt;
-    await this.users.updateOne({ id: user.id }, { $set: { lastLoginAt: user.lastLoginAt, lastActiveAt: user.lastActiveAt } });
+    const lastLoginAt = Date.now();
+    await this.users.updateOne({ id: user.id }, { $set: { lastLoginAt, lastActiveAt: lastLoginAt } });
     const token = await this.createSession(user);
-    return { token, state: this.authState(user), hydrate: true };
+    return {
+      token,
+      state: this.authState({
+        ...user,
+        lastLoginAt,
+        lastActiveAt: lastLoginAt
+      }),
+      hydrate: true
+    };
   }
 
   async signup({ fullName, email, password, age, birthDate, gender, interestedIn }) {
     const normalizedEmail = email.trim().toLowerCase();
-    if (await this.findUserByEmail(normalizedEmail)) {
+    if (await this.findUserAuthByEmail(normalizedEmail)) {
       const error = new Error("An account with this email already exists.");
       error.status = 409;
       throw error;
