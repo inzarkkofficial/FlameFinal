@@ -5415,7 +5415,15 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
   };
 
   const setBackgroundImage = (file) => {
-    readImage(file, (src) => onUpdateProfile({ background: src }));
+    if (!file) return;
+    compressImageFile(file, { maxEdge: 1600, maxChars: 1_420_000 })
+      .then((src) => {
+        if (src) onUpdateProfile({ background: src });
+        if (backgroundInput.current) backgroundInput.current.value = "";
+      })
+      .catch(() => {
+        readImage(file, (src) => onUpdateProfile({ background: src }));
+      });
   };
 
   const removeMedia = (index) => {
@@ -6640,6 +6648,52 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
+function readImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Could not read image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageSource(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not load image."));
+    image.src = src;
+  });
+}
+
+async function compressImageFile(file, { maxEdge = 1600, maxChars = 1_420_000, quality = 0.84 } = {}) {
+  if (!file || !String(file.type || "").startsWith("image/")) return "";
+  const original = await readImageFile(file);
+  if (original.length <= maxChars) return original;
+
+  const image = await loadImageSource(original);
+  let edge = maxEdge;
+  let currentQuality = quality;
+  let output = original;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const scale = Math.min(1, edge / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    context.drawImage(image, 0, 0, width, height);
+    output = canvas.toDataURL("image/jpeg", currentQuality);
+    if (output.length <= maxChars) return output;
+    edge = Math.max(720, Math.round(edge * 0.82));
+    currentQuality = Math.max(0.58, currentQuality - 0.08);
+  }
+
+  return output;
+}
+
 function relativeTime(ts) {
   if (!ts) return "now";
   const diff = Date.now() - ts;
@@ -6657,10 +6711,10 @@ function profileBackgroundStyle(background = "") {
   const value = String(background || "").trim();
   if (!value) return {};
   if (value.startsWith("data:image") || value.startsWith("http") || value.startsWith("/")) {
-    return { backgroundImage: `url("${value}")` };
+    return { "--profile-hero-background": `url("${value}")` };
   }
-  if (value.includes("gradient(")) return { backgroundImage: value };
-  return { background: value };
+  if (value.includes("gradient(")) return { "--profile-hero-background": value };
+  return { "--profile-hero-background": value };
 }
 
 function relativeTimeLong(ts) {

@@ -2069,3 +2069,161 @@
     box-shadow: 0 30px 80px rgba(126, 34, 57, 0.16);
   }
 }
+
+.flame-app.auth-mode .signup-page .auth-birthday-field {
+  position: relative;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-field.has-value .auth-label,
+.flame-app.auth-mode .signup-page .auth-birthday-field:focus-within .auth-label {
+  top: 0;
+  left: 16px;
+  color: #ff94ad;
+  background: #15070f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-group {
+  min-height: 54px;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-group > svg {
+  flex: 0 0 auto;
+  margin: 0 0 0 16px;
+  color: #ff557f;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-control {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(64px, 0.72fr) minmax(76px, 0.82fr);
+  min-width: 0;
+  min-height: 54px;
+  margin-left: 12px;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-segment {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 54px;
+  transition: background 0.24s ease;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-segment + .auth-birthday-segment::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 1px;
+  background: rgba(255, 63, 104, 0.24);
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-segment:hover,
+.flame-app.auth-mode .signup-page .auth-birthday-segment:focus-within {
+  background: rgba(255, 63, 104, 0.08);
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 54px;
+  padding: 0 30px 0 12px;
+  color: rgba(255, 229, 236, 0.66);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.24s ease;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-select.is-filled {
+  color: #fff;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-select:focus-visible {
+  color: #fff;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-select option {
+  color: #fff;
+  background: #15070f;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-select-arrow {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 134, 164, 0.78);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: color 0.24s ease, transform 0.24s ease;
+}
+
+.flame-app.auth-mode .signup-page .auth-birthday-segment:hover .auth-birthday-select-arrow,
+.flame-app.auth-mode .signup-page .auth-birthday-segment:focus-within .auth-birthday-select-arrow {
+  color: #ff94ad;
+  transform: translateY(-50%) translateY(1px);
+}
+
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-field.has-value .auth-label,
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-field:focus-within .auth-label {
+  color: #2b1518;
+  background: #fff7f4;
+}
+
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-select {
+  color: #775c63;
+}
+
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-select.is-filled,
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-select:focus-visible {
+  color: #2b1518;
+}
+
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-select option {
+  color: #2b1518;
+  background: #fff7f4;
+}
+
+.flame-app.auth-mode.light-mode .signup-page .auth-birthday-segment + .auth-birthday-segment::before {
+  background: rgba(94, 42, 44, 0.14);
+}
+
+@media (max-width: 420px) {
+  .flame-app.auth-mode .signup-page .auth-birthday-group > svg {
+    margin-left: 12px;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-birthday-control {
+    grid-template-columns: minmax(0, 1.12fr) minmax(52px, 0.68fr) minmax(66px, 0.82fr);
+    margin-left: 8px;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-birthday-select {
+    min-height: 52px;
+    padding-right: 24px;
+    padding-left: 8px;
+    font-size: 13px;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-birthday-select-arrow {
+    right: 7px;
+  }
+}

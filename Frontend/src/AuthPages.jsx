@@ -48,6 +48,12 @@ const CalendarIcon = () => (
   </svg>
 );
 
+const SelectChevronIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m6 9 6 6 6-6"></path>
+  </svg>
+);
+
 const MeetPeopleIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -97,6 +103,35 @@ function calculateAgeFromBirthDate(value) {
   const monthDiff = today.getMonth() - birthDate.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age -= 1;
   return age;
+}
+
+const BIRTH_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+
+const BIRTH_YEARS = Array.from({ length: new Date().getFullYear() - 1899 }, (_, index) =>
+  String(new Date().getFullYear() - index)
+);
+
+function paddedDatePart(value) {
+  return String(value).padStart(2, "0");
+}
+
+function daysInBirthMonth(month, year) {
+  const monthNumber = Number(month);
+  if (!monthNumber) return 31;
+  return new Date(Number(year) || 2024, monthNumber, 0).getDate();
 }
 
 function AuthDesktopStage({ ctaText, ctaLabel, onCta }) {
@@ -312,11 +347,31 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [birthDate, setBirthDate] = useState("");
+  const [birthdayParts, setBirthdayParts] = useState({ month: "", day: "", year: "" });
   const [gender, setGender] = useState("");
   const [interestedIn, setInterestedIn] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
+  const birthdayDayCount = daysInBirthMonth(birthdayParts.month, birthdayParts.year);
+  const birthdayDays = Array.from({ length: birthdayDayCount }, (_, index) => paddedDatePart(index + 1));
+  const hasBirthdayValue = Boolean(birthdayParts.month || birthdayParts.day || birthdayParts.year);
+
+  const updateBirthdayPart = (part, value) => {
+    setBirthdayParts((current) => {
+      const next = { ...current, [part]: value };
+      const maxDay = daysInBirthMonth(next.month, next.year);
+      if (Number(next.day) > maxDay) next.day = paddedDatePart(maxDay);
+
+      if (next.month && next.day && next.year) {
+        setBirthDate(`${next.year}-${next.month}-${next.day}`);
+      } else {
+        setBirthDate("");
+      }
+
+      return next;
+    });
+  };
 
   const handleSignup = async () => {
     setError("");
@@ -434,17 +489,66 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
           </div>
 
           {/* Birth Date Field */}
-          <div className="auth-field">
+          <div className={`auth-field auth-birthday-field ${hasBirthdayValue ? "has-value" : ""}`}>
             <label className="auth-label">Date of Birth</label>
-            <div className="auth-input-group">
+            <div className="auth-input-group auth-birthday-group">
               <CalendarIcon />
-              <input
-                type="date"
-                className="auth-input"
-                placeholder="Birthday"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-              />
+              <div className="auth-birthday-control" role="group" aria-label="Date of birth">
+                <span className="auth-birthday-segment">
+                  <select
+                    className={`auth-birthday-select ${birthdayParts.month ? "is-filled" : ""}`}
+                    value={birthdayParts.month}
+                    onChange={(e) => updateBirthdayPart("month", e.target.value)}
+                    aria-label="Birth month"
+                  >
+                    <option value="" disabled>Month</option>
+                    {BIRTH_MONTHS.map((month, index) => (
+                      <option key={month} value={paddedDatePart(index + 1)}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="auth-birthday-select-arrow" aria-hidden="true">
+                    <SelectChevronIcon />
+                  </span>
+                </span>
+                <span className="auth-birthday-segment">
+                  <select
+                    className={`auth-birthday-select ${birthdayParts.day ? "is-filled" : ""}`}
+                    value={birthdayParts.day}
+                    onChange={(e) => updateBirthdayPart("day", e.target.value)}
+                    aria-label="Birth day"
+                  >
+                    <option value="" disabled>Day</option>
+                    {birthdayDays.map((day) => (
+                      <option key={day} value={day}>
+                        {day}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="auth-birthday-select-arrow" aria-hidden="true">
+                    <SelectChevronIcon />
+                  </span>
+                </span>
+                <span className="auth-birthday-segment">
+                  <select
+                    className={`auth-birthday-select ${birthdayParts.year ? "is-filled" : ""}`}
+                    value={birthdayParts.year}
+                    onChange={(e) => updateBirthdayPart("year", e.target.value)}
+                    aria-label="Birth year"
+                  >
+                    <option value="" disabled>Year</option>
+                    {BIRTH_YEARS.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="auth-birthday-select-arrow" aria-hidden="true">
+                    <SelectChevronIcon />
+                  </span>
+                </span>
+              </div>
             </div>
             {calculatedAge !== "" && (
               <div className="auth-password-status">

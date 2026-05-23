@@ -15168,3 +15168,205 @@ body {
     transform: translateX(-50%) !important;
   }
 }
+
+/* Production polish: keep profile backgrounds functional and theme text readable. */
+.flame-app.app-mode .profile-hero-panel {
+  background:
+    var(
+      --profile-hero-background,
+      radial-gradient(circle at 22% 12%, rgba(255, 63, 104, 0.2), transparent 34%),
+      linear-gradient(135deg, #fff1f5, #fffaf8)
+    ) !important;
+  background-position: center !important;
+  background-size: cover !important;
+}
+
+.flame-app.app-mode:not(.light-mode) .profile-hero-panel,
+:root[data-theme="dark"] .flame-app.app-mode .profile-hero-panel {
+  background:
+    var(
+      --profile-hero-background,
+      radial-gradient(circle at 24% 14%, rgba(255, 63, 104, 0.18), transparent 36%),
+      linear-gradient(135deg, rgba(33, 18, 25, 0.96), rgba(13, 5, 10, 0.96))
+    ) !important;
+}
+
+.flame-app.app-mode .background-preset-grid button {
+  cursor: pointer !important;
+  transition: transform 0.22s ease, border-color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease !important;
+}
+
+.flame-app.app-mode .background-preset-grid button:hover,
+.flame-app.app-mode .background-preset-grid button:focus-visible {
+  transform: translateY(-1px) !important;
+  border-color: rgba(255, 63, 104, 0.42) !important;
+  outline: none !important;
+}
+
+.flame-app.app-mode .background-preset-grid button span {
+  color: var(--theme-text-primary) !important;
+  opacity: 0.9 !important;
+}
+
+.flame-app.app-mode .background-preset-grid button.active span,
+.flame-app.app-mode .background-preset-grid button:hover span,
+.flame-app.app-mode .background-preset-grid button:focus-visible span {
+  color: var(--primary) !important;
+  opacity: 1 !important;
+}
+
+.flame-app.app-mode .background-preset-grid i {
+  border: 1px solid rgba(255, 107, 154, 0.18) !important;
+}
+
+.flame-app.app-mode.light-mode .edit-profile-form label,
+.flame-app.app-mode.light-mode .edit-interest-field > span,
+.flame-app.app-mode.light-mode .edit-media-panel .section-label,
+:root[data-theme="light"] .flame-app.app-mode .edit-profile-form label,
+:root[data-theme="light"] .flame-app.app-mode .edit-interest-field > span,
+:root[data-theme="light"] .flame-app.app-mode .edit-media-panel .section-label {
+  color: #7a243b !important;
+}
+
+.flame-app.app-mode:not(.light-mode) .edit-profile-form label,
+.flame-app.app-mode:not(.light-mode) .edit-interest-field > span,
+.flame-app.app-mode:not(.light-mode) .edit-media-panel .section-label,
+:root[data-theme="dark"] .flame-app.app-mode .edit-profile-form label,
+:root[data-theme="dark"] .flame-app.app-mode .edit-interest-field > span,
+:root[data-theme="dark"] .flame-app.app-mode .edit-media-panel .section-label {
+  color: rgba(255, 226, 233, 0.86) !important;
+}
+
+.flame-app.app-mode.light-mode .interest-chip,
+:root[data-theme="light"] .flame-app.app-mode .interest-chip {
+  color: #7a243b !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(255, 107, 154, 0.22) !important;
+}
+
+.flame-app.app-mode.light-mode .interest-chip.active,
+:root[data-theme="light"] .flame-app.app-mode .interest-chip.active {
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--primary-deep), var(--primary)) !important;
+  border-color: transparent !important;
+}
+
+.flame-app.app-mode:not(.light-mode) .interest-chip,
+:root[data-theme="dark"] .flame-app.app-mode .interest-chip {
+  color: rgba(255, 226, 233, 0.86) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 107, 154, 0.2) !important;
+}
+
+.flame-app.app-mode :where(.edit-profile-form input, .edit-profile-form select, .edit-profile-form textarea) {
+  font-weight: 700 !important;
+}
+
+.flame-app.app-mode.light-mode :where(.edit-profile-form input, .edit-profile-form select, .edit-profile-form textarea),
+:root[data-theme="light"] .flame-app.app-mode :where(.edit-profile-form input, .edit-profile-form select, .edit-profile-form textarea) {
+  color: #2b1518 !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(255, 107, 154, 0.22) !important;
+}
+
+@media (max-width: 760px) {
+  .flame-app.app-mode {
+    --mobile-pad: clamp(12px, 4vw, 18px);
+    --mobile-nav-height: 74px;
+  }
+
+  .flame-app.app-mode .screen,
+  .flame-app.home-active .home-screen {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: var(--mobile-pad) !important;
+    padding-left: var(--mobile-pad) !important;
+    padding-bottom: calc(var(--mobile-nav-height) + 30px + env(safe-area-inset-bottom)) !important;
+    box-sizing: border-box !important;
+  }
+
+  .flame-app.home-active .home-desktop-layout,
+  .flame-app.home-active .home-feed-column,
+  .flame-app.home-active .feed-list,
+  .flame-app.app-mode .match-top-row,
+  .flame-app.app-mode .liked-you-list,
+  .flame-app.app-mode .chat-list,
+  .flame-app.app-mode .profile-page-shell,
+  .flame-app.app-mode .profile-content-grid,
+  .flame-app.app-mode .edit-profile-wrap,
+  .flame-app.app-mode .edit-profile-form {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  .flame-app.home-active .feed-composer,
+  .flame-app.home-active .feed-post,
+  .flame-app.app-mode .profile-panel,
+  .flame-app.app-mode .profile-hero-panel,
+  .flame-app.app-mode .chat,
+  .flame-app.app-mode .liked-you {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .flame-app.home-active .composer-head,
+  .flame-app.home-active .feed-post-head,
+  .flame-app.app-mode .chat,
+  .flame-app.app-mode .liked-you {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+  }
+
+  .flame-app.home-active .feed-tools {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app.app-mode .discover-screen {
+    display: grid !important;
+    grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+    padding-bottom: calc(var(--mobile-nav-height) + 116px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .flame-app.app-mode .discover-screen .card-wrap {
+    width: 100% !important;
+    min-height: 460px !important;
+    height: clamp(460px, calc(100dvh - 280px), 620px) !important;
+  }
+
+  .flame-app.app-mode .discover-screen .actions {
+    position: fixed !important;
+    right: 10px !important;
+    bottom: calc(var(--mobile-nav-height) + 18px + env(safe-area-inset-bottom)) !important;
+    left: 10px !important;
+    z-index: 165 !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    width: auto !important;
+    transform: none !important;
+  }
+
+  .flame-app.app-mode .form-grid,
+  .flame-app.app-mode .edit-profile-form .form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .flame-app.app-mode .profile-hero-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: center !important;
+  }
+
+  .flame-app.app-mode .profile-hero-main > img {
+    justify-self: center !important;
+  }
+
+  .flame-app.app-mode .profile-hero-actions,
+  .flame-app.home-active .feed-tools {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
