@@ -218,6 +218,12 @@ function normalizeActivityEvent(event) {
   };
 }
 
+function normalizeProfileChoice(value, choices) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return choices.find((choice) => choice.toLowerCase() === text.toLowerCase()) || text;
+}
+
 function normalizeStory(story, now = Date.now()) {
   const createdAt = Number(story?.createdAt) || now;
   const expiresAt = Number(story?.expiresAt) || createdAt + STORY_TTL_MS;
@@ -353,6 +359,8 @@ function normalizeUser(user) {
     events
   };
   delete state.verification;
+  state.user.gender = normalizeProfileChoice(state.user.gender, ["Woman", "Man", "Non-binary", "Prefer not to say"]);
+  state.user.interestedIn = normalizeProfileChoice(state.user.interestedIn, ["Women", "Men", "Everyone"]);
 
   return { ...user, state };
 }
@@ -1239,14 +1247,11 @@ export class FlameDatabase {
 
     const lastLoginAt = Date.now();
     await this.users.updateOne({ id: user.id }, { $set: { lastLoginAt, lastActiveAt: lastLoginAt } });
+    const fullUser = await this.findUserById(user.id);
     const token = await this.createSession(user);
     return {
       token,
-      state: this.authState({
-        ...user,
-        lastLoginAt,
-        lastActiveAt: lastLoginAt
-      }),
+      state: await this.publicState(fullUser || { ...user, lastLoginAt, lastActiveAt: lastLoginAt }),
       hydrate: true
     };
   }

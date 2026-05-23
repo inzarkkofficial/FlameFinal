@@ -142,6 +142,12 @@ function cleanString(value, max = 500) {
   return String(value ?? "").trim().slice(0, max);
 }
 
+function cleanProfileChoice(value, choices) {
+  const text = cleanString(value, 30);
+  if (!text) return "";
+  return choices.find((choice) => choice.toLowerCase() === text.toLowerCase()) || text;
+}
+
 function cleanRoomSegment(value, fallback = "flame") {
   const segment = cleanString(value, 120).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
   return segment || fallback;
@@ -381,8 +387,8 @@ function validateAuth(body, signup = false) {
     fullName,
     age: Math.max(18, Math.min(99, Number(calculatedAge ?? body.age) || 18)),
     birthDate,
-    gender: cleanString(body.gender, 30),
-    interestedIn: cleanString(body.interestedIn, 30)
+    gender: cleanProfileChoice(body.gender, ["Woman", "Man", "Non-binary", "Prefer not to say"]),
+    interestedIn: cleanProfileChoice(body.interestedIn, ["Women", "Men", "Everyone"])
   };
 }
 

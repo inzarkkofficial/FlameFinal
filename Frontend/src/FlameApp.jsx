@@ -646,9 +646,9 @@ export default function FlameApp() {
       <AppSurface light={light} mode="onboarding-mode">
         <FirstTimeOnboarding
           user={state.user}
-          onComplete={(data) => {
-            setUserProfile({ ...data, onboardingCompleted: true });
-            showToast("You're all set");
+          onComplete={async (data) => {
+            const result = await setUserProfile({ ...data, onboardingCompleted: true }, { optimistic: false });
+            showToast(result.ok ? "You're all set" : result.error);
           }}
         />
         <div className="sr-live" role="status" aria-live="polite" aria-atomic="true">
@@ -828,10 +828,14 @@ export default function FlameApp() {
               <EditProfile
                 user={state.user}
                 profiles={state.profiles}
-                onSave={(data) => {
-                  setUserProfile(data);
-                  navigateTo("profile");
-                  showToast("Profile updated");
+                onSave={async (data) => {
+                  const result = await setUserProfile(data, { optimistic: false });
+                  if (result.ok) {
+                    navigateTo("profile");
+                    showToast("Profile updated");
+                  } else {
+                    showToast(result.error);
+                  }
                 }}
                 onCancel={() => navigateTo("profile")}
               />
@@ -1176,6 +1180,7 @@ function FirstTimeOnboarding({ user, onComplete }) {
   );
   const [interestText, setInterestText] = useState("");
   const [zodiacSign, setZodiacSign] = useState(user.zodiacSign || "");
+  const [saving, setSaving] = useState(false);
   const lastInterestTap = useRef(0);
   const firstName = String(user.fullName || "there").trim().split(/\s+/)[0] || "there";
 
@@ -1200,11 +1205,14 @@ function FirstTimeOnboarding({ user, onComplete }) {
     );
   };
 
-  const finish = () => {
-    onComplete({
+  const finish = async () => {
+    if (saving) return;
+    setSaving(true);
+    await onComplete({
       interests,
       zodiacSign
     });
+    setSaving(false);
   };
 
   return (
@@ -1327,8 +1335,8 @@ function FirstTimeOnboarding({ user, onComplete }) {
           <div className="onboarding-pane completion-pane">
             <div className="completion-mark">OK</div>
             <h1>You're all set.</h1>
-            <button className="cta" type="button" onClick={finish}>
-              Start Exploring
+            <button className="cta" type="button" onClick={finish} disabled={saving}>
+              {saving ? "Saving..." : "Start Exploring"}
             </button>
           </div>
         )}
@@ -6127,6 +6135,7 @@ function EditProfile({ user, profiles = [], onSave, onCancel }) {
     media: user.media || []
   });
   const [preview, setPreview] = useState(user.image);
+  const [interestText, setInterestText] = useState("");
   const [locationFocused, setLocationFocused] = useState(false);
   const [remoteLocations, setRemoteLocations] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -6151,6 +6160,7 @@ function EditProfile({ user, profiles = [], onSave, onCancel }) {
       media: user.media || []
     });
     setPreview(user.image);
+    setInterestText("");
   }, [user]);
 
   useEffect(
@@ -6171,6 +6181,19 @@ function EditProfile({ user, profiles = [], onSave, onCancel }) {
           : [...current, interest].slice(0, 12)
       };
     });
+  };
+  const addFormInterest = (value = interestText) => {
+    const text = String(value || "").trim();
+    if (!text) return;
+    const canonical = ONBOARDING_INTERESTS.find((item) => item.toLowerCase() === text.toLowerCase()) || text;
+    setForm((prev) => {
+      const current = Array.isArray(prev.interests) ? prev.interests : [];
+      if (current.some((item) => item.toLowerCase() === canonical.toLowerCase()) || current.length >= 12) {
+        return prev;
+      }
+      return { ...prev, interests: [...current, canonical].slice(0, 12) };
+    });
+    setInterestText("");
   };
 
   useEffect(() => {
@@ -6419,6 +6442,35 @@ function EditProfile({ user, profiles = [], onSave, onCancel }) {
                 </button>
               ))}
             </div>
+            <label className="onboarding-typebox edit-interest-add">
+              Add interest
+              <input
+                value={interestText}
+                onChange={(event) => setInterestText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addFormInterest();
+                  }
+                }}
+                list="flame-edit-interest-options"
+                placeholder="Type an interest and press Enter"
+              />
+              <datalist id="flame-edit-interest-options">
+                {ONBOARDING_INTERESTS.map((interest) => (
+                  <option key={interest} value={interest} />
+                ))}
+              </datalist>
+            </label>
+            {form.interests?.length > 0 && (
+              <div className="selected-interest-row">
+                {form.interests.map((interest) => (
+                  <button key={interest} type="button" onClick={() => toggleFormInterest(interest)}>
+                    {interest} x
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="form-grid">
             <label>

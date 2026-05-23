@@ -49,7 +49,7 @@ const fallbackState = {
   user: {
     fullName: "",
     age: 18,
-    location: "San Francisco, CA",
+    location: "Nearby",
     bio: "",
     image: DEFAULT_PROFILE_IMAGE,
     background: "",
@@ -880,9 +880,11 @@ export function useFlameStore() {
   }, []);
 
   const setUserProfile = useCallback(
-    (updates) => {
-      setState((current) => ({ ...current, user: { ...current.user, ...updates } }));
-      request("/profile", { method: "PATCH", body: jsonBody(updates) });
+    async (updates, options = {}) => {
+      if (options.optimistic !== false) {
+        setState((current) => ({ ...current, user: { ...current.user, ...updates } }));
+      }
+      return request("/profile", { method: "PATCH", body: jsonBody(updates) });
     },
     [request]
   );
