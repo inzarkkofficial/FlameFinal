@@ -906,7 +906,7 @@ async function handleApi(req, res, url) {
   const { user } = await requireUser(req);
 
   if (pathname === "/api/session" && req.method === "GET") {
-    sendJson(res, 200, { ok: true, state: await db.publicState(user) });
+    sendJson(res, 200, { ok: true, state: await db.publicState(user, { includeFeed: false }) });
     return;
   }
 

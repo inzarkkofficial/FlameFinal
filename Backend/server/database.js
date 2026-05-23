@@ -1050,7 +1050,7 @@ export class FlameDatabase {
     console.warn(`Using local Flame datastore at ${this.localDbPath}. Reason: ${reason}`);
   }
 
-  async publicState(user) {
+  async publicState(user, { includeFeed = true } = {}) {
     const normalized = normalizeUser(user);
     const profiles = await this.discoverProfiles(normalized);
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -1101,7 +1101,7 @@ export class FlameDatabase {
       },
       ...state,
       profiles,
-      feed: await this.publicFeed(normalized.id)
+      ...(includeFeed ? { feed: await this.publicFeed(normalized.id) } : {})
     };
   }
 
@@ -1153,7 +1153,7 @@ export class FlameDatabase {
       .find({})
       .project({ _id: 0 })
       .sort({ createdAt: -1 })
-      .limit(60)
+      .limit(25)
       .toArray();
     const authorIds = new Set();
 

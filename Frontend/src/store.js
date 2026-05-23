@@ -451,6 +451,11 @@ export function useFlameStore() {
       if (!cancelled) {
         if (!result.ok) setState(fallbackState);
         setHydrated(true);
+        if (result.ok) {
+          request("/feed", { method: "GET" }).then((feedResult) => {
+            if (!cancelled && feedResult.feed) applyFeed(feedResult.feed);
+          });
+        }
       }
     }
 
@@ -458,7 +463,7 @@ export function useFlameStore() {
     return () => {
       cancelled = true;
     };
-  }, [request]);
+  }, [applyFeed, request]);
 
   useEffect(() => {
     return () => {
@@ -549,6 +554,9 @@ export function useFlameStore() {
         if (result.state) applyServerState(result.state);
         window.setTimeout(() => {
           request("/session", { method: "GET" });
+          request("/feed", { method: "GET" }).then((feedResult) => {
+            if (feedResult.feed) applyFeed(feedResult.feed);
+          });
         }, 0);
         return { ok: true, ...result };
       } catch (error) {
@@ -557,7 +565,7 @@ export function useFlameStore() {
         return { ok: false, error: message };
       }
     },
-    [applyServerState, request]
+    [applyFeed, applyServerState, request]
   );
 
   const signup = useCallback(
@@ -570,11 +578,14 @@ export function useFlameStore() {
         setToken(result.token);
         window.setTimeout(() => {
           request("/session", { method: "GET" });
+          request("/feed", { method: "GET" }).then((feedResult) => {
+            if (feedResult.feed) applyFeed(feedResult.feed);
+          });
         }, 0);
       }
       return result;
     },
-    [request]
+    [applyFeed, request]
   );
 
   const logout = useCallback(async () => {
