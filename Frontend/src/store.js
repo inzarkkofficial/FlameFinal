@@ -313,7 +313,11 @@ function normalizeActivityEvent(event) {
   };
 }
 
-function mergeState(next) {
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value || {}, key);
+}
+
+function mergeState(next, current = fallbackState) {
   const user = { ...fallbackState.user, ...(next?.user || {}) };
   user.image = resolveAsset(user.image);
   user.interests = Array.isArray(user.interests)
@@ -374,7 +378,13 @@ function mergeState(next) {
     matches,
     stories: Array.isArray(next?.stories) ? next.stories.map(normalizeStory).filter(Boolean) : [],
     profiles: currentProfiles,
-    feed: Array.isArray(next?.feed) ? next.feed.map(normalizePost).filter(Boolean) : [],
+    feed: hasOwn(next, "feed")
+      ? Array.isArray(next?.feed)
+        ? next.feed.map(normalizePost).filter(Boolean)
+        : []
+      : Array.isArray(current?.feed)
+        ? current.feed
+        : [],
     events: Array.isArray(next?.events) ? next.events.map(normalizeActivityEvent).filter(Boolean) : []
   };
   delete state.verification;
@@ -407,7 +417,7 @@ export function useFlameStore() {
   }, []);
 
   const applyServerState = useCallback((nextState) => {
-    setState(withPendingPostReactions(mergeState(nextState)));
+    setState((current) => withPendingPostReactions(mergeState(nextState, current)));
     setLastError("");
   }, [withPendingPostReactions]);
 
@@ -553,9 +563,10 @@ export function useFlameStore() {
         setToken(result.token);
         if (result.state) applyServerState(result.state);
         window.setTimeout(() => {
-          request("/session", { method: "GET" });
-          request("/feed", { method: "GET" }).then((feedResult) => {
-            if (feedResult.feed) applyFeed(feedResult.feed);
+          request("/session", { method: "GET" }).then(() => {
+            request("/feed", { method: "GET" }).then((feedResult) => {
+              if (feedResult.feed) applyFeed(feedResult.feed);
+            });
           });
         }, 0);
         return { ok: true, ...result };
@@ -577,9 +588,10 @@ export function useFlameStore() {
       if (result.ok) {
         setToken(result.token);
         window.setTimeout(() => {
-          request("/session", { method: "GET" });
-          request("/feed", { method: "GET" }).then((feedResult) => {
-            if (feedResult.feed) applyFeed(feedResult.feed);
+          request("/session", { method: "GET" }).then(() => {
+            request("/feed", { method: "GET" }).then((feedResult) => {
+              if (feedResult.feed) applyFeed(feedResult.feed);
+            });
           });
         }, 0);
       }
