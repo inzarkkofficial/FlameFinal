@@ -1,4 +1,5 @@
 node_modules/
+dist/
 Frontend/dist/
 .flame-data/
 Backend/server/data/
