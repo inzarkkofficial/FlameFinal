@@ -1251,7 +1251,7 @@ export class FlameDatabase {
     const token = await this.createSession(user);
     return {
       token,
-      state: await this.publicState(fullUser || { ...user, lastLoginAt, lastActiveAt: lastLoginAt }),
+      state: this.authState(fullUser || { ...user, lastLoginAt, lastActiveAt: lastLoginAt }),
       hydrate: true
     };
   }
@@ -1295,7 +1295,7 @@ export class FlameDatabase {
 
     await this.users.insertOne(user);
     const token = await this.createSession(user);
-    return { token, state: await this.publicState(user) };
+    return { token, state: this.authState(user), hydrate: true };
   }
 
   async saveState(user, nextState) {

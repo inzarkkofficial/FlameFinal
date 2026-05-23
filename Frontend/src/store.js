@@ -566,7 +566,12 @@ export function useFlameStore() {
         method: "POST",
         body: jsonBody(payload)
       });
-      if (result.ok) setToken(result.token);
+      if (result.ok) {
+        setToken(result.token);
+        window.setTimeout(() => {
+          request("/session", { method: "GET" });
+        }, 0);
+      }
       return result;
     },
     [request]
