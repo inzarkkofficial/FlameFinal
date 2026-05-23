@@ -39,6 +39,7 @@ let dbInitError = null;
 let dbInitPromise = null;
 const onlineUsers = new Map();
 const POST_REACTIONS = new Set(["love", "laugh", "wow", "sad", "angry", "care", "like", "fire"]);
+const ROOM_REACTIONS = new Set(["heart", "laugh", "wow", "clap", "sad", "fire"]);
 const POST_MEDIA_MAX_CHARS = 14_000_000;
 const POSITIONSTACK_API_KEY = process.env.POSITIONSTACK_API_KEY || "";
 const POSITIONSTACK_ENDPOINT = process.env.POSITIONSTACK_ENDPOINT || "http://api.positionstack.com/v1/forward";
@@ -153,6 +154,10 @@ function cleanProfileChoice(value, choices) {
 function cleanRoomSegment(value, fallback = "flame") {
   const segment = cleanString(value, 120).replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_");
   return segment || fallback;
+}
+
+function conversationRoomId(userId, profileId) {
+  return `conversation:${[cleanRoomSegment(userId, "a"), cleanRoomSegment(profileId, "b")].sort().join(":")}`;
 }
 
 function publicDisplayName(user) {
@@ -404,6 +409,25 @@ function emitResultStates(result) {
   emitUserState(result.recipientId, result.recipientState);
 }
 
+function emitRealtimeMessageResult(result) {
+  if (!io || !result?.senderId || !result?.recipientId) return;
+  if (result.senderMessage) {
+    io.to(`user:${result.senderId}`).emit("messageSent", {
+      profileId: result.recipientId,
+      messageId: result.senderMessage.id,
+      message: result.senderMessage,
+      conversationId: result.conversationId || ""
+    });
+  }
+  if (result.recipientMessage) {
+    io.to(`user:${result.recipientId}`).emit("receiveMessage", {
+      profileId: result.senderId,
+      message: result.recipientMessage,
+      conversationId: result.conversationId || ""
+    });
+  }
+}
+
 function emitActivityEvents(events = []) {
   for (const event of events) {
     emitUserState(event.userId, event.state);
@@ -418,6 +442,18 @@ function emitPresence(userId, online, lastActiveAt = Date.now()) {
 function emitFeedRefresh() {
   if (!io) return;
   io.emit("feed:update");
+}
+
+function emitGroupRoomUpdate(room) {
+  if (!io || !room) return;
+  io.emit("group-room:update", { room });
+  io.emit("group-rooms:refresh", { roomId: room.id });
+}
+
+function emitGroupRoomDeleted(roomId) {
+  if (!io || !roomId) return;
+  io.emit("group-room:deleted", { roomId });
+  io.emit("group-rooms:refresh", { roomId });
 }
 
 function syncOnlineUsers() {
@@ -523,6 +559,84 @@ function sanitizeStoryMusic(value) {
   return { source: "synth", id, title, artist, startAt, duration };
 }
 
+function sanitizeGroupRoomPayload(body) {
+  const name = cleanString(body.name, 80);
+  const description = cleanString(body.description, 500);
+  const maxMembers = Math.max(2, Math.min(24, Number(body.maxMembers) || 6));
+  if (!name || !description) {
+    const error = new Error("Room name and description are required.");
+    error.status = 400;
+    throw error;
+  }
+  return { name, description, maxMembers };
+}
+
+function cleanGroupRoomId(body) {
+  const roomId = cleanString(body.roomId || body.id, 120);
+  if (!roomId) {
+    const error = new Error("Choose a room first.");
+    error.status = 400;
+    throw error;
+  }
+  return roomId;
+}
+
+async function createGroupRoom(user, body) {
+  const room = await db.createGroupRoom(user, sanitizeGroupRoomPayload(body || {}));
+  emitGroupRoomUpdate(room);
+  return room;
+}
+
+async function joinGroupRoom(user, body) {
+  const room = await db.joinGroupRoom(user, cleanGroupRoomId(body || {}));
+  emitGroupRoomUpdate(room);
+  return room;
+}
+
+async function leaveGroupRoom(user, body) {
+  const room = await db.leaveGroupRoom(user, cleanGroupRoomId(body || {}));
+  emitGroupRoomUpdate(room);
+  return room;
+}
+
+async function chooseGroupRoomSeat(user, body) {
+  const room = await db.chooseGroupRoomSeat(user, {
+    roomId: cleanGroupRoomId(body || {}),
+    seatIndex: Number(body?.seatIndex)
+  });
+  emitGroupRoomUpdate(room);
+  return room;
+}
+
+async function updateGroupRoomMic(user, body) {
+  const room = await db.updateGroupRoomMic(user, {
+    roomId: cleanGroupRoomId(body || {}),
+    micOn: Boolean(body?.micOn)
+  });
+  emitGroupRoomUpdate(room);
+  return room;
+}
+
+async function sendGroupRoomReaction(user, body) {
+  const emoji = cleanString(body?.emoji, 20);
+  const room = await db.sendGroupRoomReaction(user, {
+    roomId: cleanGroupRoomId(body || {}),
+    emoji: ROOM_REACTIONS.has(emoji) ? emoji : "heart"
+  });
+  emitGroupRoomUpdate(room);
+  io?.emit("group-room:reaction", {
+    roomId: room.id,
+    reaction: room.reactions[room.reactions.length - 1] || null
+  });
+  return room;
+}
+
+async function deleteGroupRoom(user, body) {
+  const result = await db.deleteGroupRoom(user, cleanGroupRoomId(body || {}));
+  emitGroupRoomDeleted(result.roomId);
+  return result;
+}
+
 async function sendMessage(user, body) {
   const profileId = cleanString(body.profileId, 80);
   const type = ["image", "video", "audio"].includes(body.type) ? body.type : "text";
@@ -541,7 +655,8 @@ async function sendMessage(user, body) {
 
   const result = await db.sendMessage(user, { profileId, text, messageId, type, media, name, mime });
   emitResultStates(result);
-  return result.senderState;
+  emitRealtimeMessageResult(result);
+  return { state: result.senderState, message: result.senderMessage, conversationId: result.conversationId };
 }
 
 async function markConversationRead(user, body) {
@@ -917,6 +1032,53 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (pathname === "/api/group-rooms" && req.method === "GET") {
+    sendJson(res, 200, { ok: true, rooms: await db.listGroupRooms(user) });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms" && req.method === "POST") {
+    const room = await createGroupRoom(user, body);
+    sendJson(res, 201, { ok: true, room });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms" && req.method === "DELETE") {
+    const result = await deleteGroupRoom(user, body);
+    sendJson(res, 200, { ok: true, ...result });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms/join" && req.method === "POST") {
+    const room = await joinGroupRoom(user, body);
+    sendJson(res, 200, { ok: true, room });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms/leave" && req.method === "POST") {
+    const room = await leaveGroupRoom(user, body);
+    sendJson(res, 200, { ok: true, room });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms/seat" && req.method === "POST") {
+    const room = await chooseGroupRoomSeat(user, body);
+    sendJson(res, 200, { ok: true, room });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms/mic" && req.method === "POST") {
+    const room = await updateGroupRoomMic(user, body);
+    sendJson(res, 200, { ok: true, room });
+    return;
+  }
+
+  if (pathname === "/api/group-rooms/reactions" && req.method === "POST") {
+    const room = await sendGroupRoomReaction(user, body);
+    sendJson(res, 200, { ok: true, room });
+    return;
+  }
+
   if (pathname === "/api/music/search" && req.method === "GET") {
     const result = await searchYouTubeMusic(url.searchParams.get("q"));
     sendJson(res, 200, { ok: true, provider: "youtube", ...result });
@@ -994,8 +1156,8 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === "/api/messages" && req.method === "POST") {
-    const state = await sendMessage(user, body);
-    sendJson(res, 201, { ok: true, state });
+    const result = await sendMessage(user, body);
+    sendJson(res, 201, { ok: true, state: result.state, message: result.message, conversationId: result.conversationId });
     return;
   }
 
@@ -1265,19 +1427,56 @@ function setupRealtime() {
       emitPresence(socket.data.userId, true, Date.now());
     }
 
-    socket.on("message:send", async (payload, acknowledge) => {
-      try {
-        const user = await db.findUserBySession(socket.data.token);
-        if (!user) throw Object.assign(new Error("Please log in again."), { status: 401 });
+    const getSocketUser = async () => {
+      const user = await db.findUserBySession(socket.data.token);
+      if (!user) throw Object.assign(new Error("Please log in again."), { status: 401 });
+      return user;
+    };
 
-        const state = await sendMessage(user, payload || {});
-        if (typeof acknowledge === "function") acknowledge({ ok: true, state });
+    const handleRealtimeMessage = async (payload, acknowledge) => {
+      try {
+        const user = await getSocketUser();
+
+        const result = await sendMessage(user, payload || {});
+        if (typeof acknowledge === "function") {
+          acknowledge({
+            ok: true,
+            state: result.state,
+            message: result.message,
+            messageId: result.message?.id || cleanString(payload?.messageId, 120),
+            conversationId: result.conversationId
+          });
+        }
       } catch (error) {
+        const messageId = cleanString(payload?.messageId, 120);
+        if (messageId) {
+          socket.emit("messageError", {
+            profileId: cleanString(payload?.profileId, 80),
+            messageId,
+            error: error.message || "Message failed."
+          });
+        }
         if (typeof acknowledge === "function") {
           acknowledge({ ok: false, error: error.message || "Message failed." });
         }
       }
+    };
+
+    socket.on("joinRoom", async (payload, acknowledge) => {
+      try {
+        await getSocketUser();
+        const profileId = cleanString(payload?.profileId, 80);
+        const roomId = cleanString(payload?.roomId, 120);
+        if (profileId) socket.join(conversationRoomId(socket.data.userId, profileId));
+        if (roomId) socket.join(`group-room:${roomId}`);
+        if (typeof acknowledge === "function") acknowledge({ ok: true });
+      } catch (error) {
+        if (typeof acknowledge === "function") acknowledge({ ok: false, error: error.message || "Could not join room." });
+      }
     });
+
+    socket.on("message:send", handleRealtimeMessage);
+    socket.on("sendMessage", handleRealtimeMessage);
 
     socket.on("conversation:read", async (payload, acknowledge) => {
       try {
@@ -1349,21 +1548,58 @@ function setupRealtime() {
       }
     });
 
-    socket.on("typing:update", async (payload) => {
+    const handleTyping = async (payload, explicitTyping = null) => {
       try {
         const profileId = cleanString(payload?.profileId, 80);
         if (!profileId) return;
 
-        const user = await db.findUserBySession(socket.data.token);
-        if (!user) return;
+        const user = await getSocketUser();
+        const typing = explicitTyping === null ? Boolean(payload?.typing) : Boolean(explicitTyping);
 
-        io.to(`user:${profileId}`).emit("typing:update", {
-          profileId: user.id,
-          typing: Boolean(payload?.typing)
-        });
+        const update = { profileId: user.id, typing };
+        io.to(`user:${profileId}`).emit("typing:update", update);
+        io.to(`user:${profileId}`).emit(typing ? "typing" : "stopTyping", update);
       } catch {
         // Typing indicators are transient; dropped events should not interrupt chat.
         
+      }
+    };
+
+    socket.on("typing:update", (payload) => handleTyping(payload));
+    socket.on("typing", (payload) => handleTyping(payload, true));
+    socket.on("stopTyping", (payload) => handleTyping(payload, false));
+
+    const handleGroupRoomAction = async (action, payload, acknowledge) => {
+      try {
+        const user = await getSocketUser();
+        const room = await action(user, payload || {});
+        if (room?.id) socket.join(`group-room:${room.id}`);
+        if (typeof acknowledge === "function") acknowledge({ ok: true, room });
+      } catch (error) {
+        if (typeof acknowledge === "function") {
+          acknowledge({ ok: false, error: error.message || "Room action failed." });
+        }
+      }
+    };
+
+    socket.on("group-room:create", (payload, acknowledge) => handleGroupRoomAction(createGroupRoom, payload, acknowledge));
+    socket.on("joinGroupRoom", (payload, acknowledge) => handleGroupRoomAction(joinGroupRoom, payload, acknowledge));
+    socket.on("leaveGroupRoom", (payload, acknowledge) => {
+      handleGroupRoomAction(leaveGroupRoom, payload, acknowledge).finally(() => {
+        const roomId = cleanString(payload?.roomId || payload?.id, 120);
+        if (roomId) socket.leave(`group-room:${roomId}`);
+      });
+    });
+    socket.on("chooseGroupRoomSeat", (payload, acknowledge) => handleGroupRoomAction(chooseGroupRoomSeat, payload, acknowledge));
+    socket.on("updateGroupRoomMic", (payload, acknowledge) => handleGroupRoomAction(updateGroupRoomMic, payload, acknowledge));
+    socket.on("sendGroupRoomReaction", (payload, acknowledge) => handleGroupRoomAction(sendGroupRoomReaction, payload, acknowledge));
+    socket.on("deleteGroupRoom", async (payload, acknowledge) => {
+      try {
+        const user = await getSocketUser();
+        const result = await deleteGroupRoom(user, payload || {});
+        if (typeof acknowledge === "function") acknowledge({ ok: true, ...result });
+      } catch (error) {
+        if (typeof acknowledge === "function") acknowledge({ ok: false, error: error.message || "Room delete failed." });
       }
     });
 

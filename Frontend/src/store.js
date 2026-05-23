@@ -4,6 +4,7 @@ import {
   connectRealtime,
   disconnectRealtime,
   getToken,
+  joinRealtimeRoom,
   jsonBody,
   markRealtimeConversationRead,
   reactRealtimePost,
@@ -66,6 +67,7 @@ const fallbackState = {
   },
   profiles: [],
   feed: [],
+  groupRooms: [],
   events: []
 };
 
@@ -253,6 +255,149 @@ function normalizePost(post) {
   };
 }
 
+function normalizeMessage(message) {
+  if (!message?.id) return null;
+  return {
+    ...message,
+    text: message.text || "",
+    ts: Number(message.ts) || Date.now(),
+    type: message.type || "text",
+    status: message.status || (message.from === "me" ? "sent" : ""),
+    reactions: message.reactions || {}
+  };
+}
+
+function sortedMessages(messages) {
+  const byId = new Map();
+  for (const rawMessage of Array.isArray(messages) ? messages : []) {
+    const message = normalizeMessage(rawMessage);
+    if (!message) continue;
+    byId.set(message.id, { ...(byId.get(message.id) || {}), ...message });
+  }
+  return Array.from(byId.values()).sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0));
+}
+
+function normalizeRoomUser(user) {
+  if (!user) return null;
+  return {
+    id: user.id || "",
+    name: user.name || "Flame user",
+    image: resolveAsset(user.image),
+    online: Boolean(user.online),
+    lastActiveAt: user.lastActiveAt || null
+  };
+}
+
+function normalizeGroupRoom(room) {
+  if (!room?.id) return null;
+  return {
+    id: room.id,
+    name: room.name || "Untitled Room",
+    description: room.description || "",
+    maxMembers: Math.max(2, Math.min(24, Number(room.maxMembers) || 6)),
+    currentMembers: Math.max(0, Number(room.currentMembers) || 0),
+    isFull: Boolean(room.isFull),
+    joined: Boolean(room.joined),
+    canDelete: Boolean(room.canDelete),
+    creatorId: room.creatorId || "",
+    creator: normalizeRoomUser(room.creator),
+    viewerSeatIndex: Number.isInteger(room.viewerSeatIndex) ? room.viewerSeatIndex : room.viewerSeatIndex ?? null,
+    members: Array.isArray(room.members)
+      ? room.members.map((member) => ({ ...normalizeRoomUser(member), joinedAt: Number(member.joinedAt) || Date.now() })).filter((member) => member.id)
+      : [],
+    seats: Array.isArray(room.seats)
+      ? room.seats.map((seat, index) => ({
+          seatIndex: Number.isInteger(seat?.seatIndex) ? seat.seatIndex : index,
+          available: seat?.available !== false,
+          user: normalizeRoomUser(seat?.user),
+          micOn: Boolean(seat?.micOn),
+          occupiedAt: Number(seat?.occupiedAt) || 0
+        }))
+      : [],
+    reactions: Array.isArray(room.reactions)
+      ? room.reactions
+          .map((reaction) => ({
+            id: reaction.id || `${reaction.userId || "user"}-${reaction.createdAt || Date.now()}`,
+            userId: reaction.userId || reaction.user?.id || "",
+            seatIndex: Number(reaction.seatIndex) || 0,
+            emoji: reaction.emoji || "heart",
+            user: normalizeRoomUser(reaction.user),
+            createdAt: Number(reaction.createdAt) || Date.now()
+          }))
+          .filter((reaction) => reaction.id)
+      : [],
+    createdAt: Number(room.createdAt) || Date.now(),
+    updatedAt: Number(room.updatedAt) || Date.now()
+  };
+}
+
+function groupRoomForViewer(room, viewerId) {
+  const normalized = normalizeGroupRoom(room);
+  if (!normalized) return null;
+  const viewerSeat = normalized.seats.find((seat) => seat.user?.id === viewerId);
+  return {
+    ...normalized,
+    joined: normalized.members.some((member) => member.id === viewerId) || Boolean(viewerSeat),
+    canDelete: normalized.creatorId === viewerId,
+    viewerSeatIndex: viewerSeat ? viewerSeat.seatIndex : null
+  };
+}
+
+function upsertGroupRoom(rooms, room, viewerId = "") {
+  const normalized = groupRoomForViewer(room, viewerId);
+  if (!normalized) return Array.isArray(rooms) ? rooms : [];
+  const next = [normalized, ...(Array.isArray(rooms) ? rooms.filter((item) => item.id !== normalized.id) : [])];
+  return next.sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+}
+
+function upsertMessageForProfile(state, profileId, rawMessage) {
+  const message = normalizeMessage(rawMessage);
+  if (!profileId || !message) return state;
+  let found = false;
+  const matches = state.matches.map((match) => {
+    if (match.profileId !== profileId) return match;
+    found = true;
+    const existing = (match.messages || []).filter((item) => item.id !== message.id);
+    return {
+      ...match,
+      archivedAt: 0,
+      deletedAt: 0,
+      messages: sortedMessages([...existing, message])
+    };
+  });
+  if (!found) {
+    matches.unshift({
+      profileId,
+      matchedAt: Date.now(),
+      archivedAt: 0,
+      deletedAt: 0,
+      pinnedMessageIds: [],
+      profile: profileCache.get(profileId) || null,
+      messages: sortedMessages([message])
+    });
+  }
+  return { ...state, matches };
+}
+
+function patchMessageForProfile(state, profileId, messageId, updater) {
+  if (!profileId || !messageId) return state;
+  return {
+    ...state,
+    matches: state.matches.map((match) =>
+      match.profileId === profileId
+        ? {
+            ...match,
+            messages: sortedMessages(
+              (match.messages || []).map((message) =>
+                message.id === messageId ? normalizeMessage(updater(message)) : message
+              )
+            )
+          }
+        : match
+    )
+  };
+}
+
 function nextReactionCounts(counts = {}, previous = "", next = "") {
   const result = { ...counts };
   if (previous) result[previous] = Math.max(0, Number(result[previous] || 0) - 1);
@@ -340,7 +485,7 @@ function mergeState(next, current = fallbackState) {
           deletedAt: Number(match.deletedAt) || 0,
           blockedAt: Number(match.blockedAt) || 0,
           blockedBy: match.blockedBy || "",
-          messages: Array.isArray(match.messages) ? match.messages : [],
+          messages: sortedMessages(match.messages),
           pinnedMessageIds: Array.isArray(match.pinnedMessageIds)
             ? Array.from(new Set(match.pinnedMessageIds.map(String).filter(Boolean))).slice(0, 80)
             : []
@@ -385,6 +530,13 @@ function mergeState(next, current = fallbackState) {
         : []
       : Array.isArray(current?.feed)
         ? current.feed
+        : [],
+    groupRooms: hasOwn(next, "groupRooms")
+      ? Array.isArray(next?.groupRooms)
+        ? next.groupRooms.map(normalizeGroupRoom).filter(Boolean)
+        : []
+      : Array.isArray(current?.groupRooms)
+        ? current.groupRooms
         : [],
     events: Array.isArray(next?.events) ? next.events.map(normalizeActivityEvent).filter(Boolean) : []
   };
@@ -442,6 +594,16 @@ export function useFlameStore() {
     setLastError("");
   }, [withPendingPostReactions]);
 
+  const applyGroupRooms = useCallback((rooms) => {
+    setState((current) => ({
+      ...current,
+      groupRooms: Array.isArray(rooms)
+        ? rooms.map((room) => groupRoomForViewer(room, current.auth?.id)).filter(Boolean)
+        : []
+    }));
+    setLastError("");
+  }, []);
+
   const request = useCallback(
     async (path, options, config = {}) => {
       try {
@@ -481,19 +643,25 @@ export function useFlameStore() {
     async function hydrate() {
       const sessionPromise = request("/session", { method: "GET" });
       const feedPromise = getToken() ? fetchFeed() : Promise.resolve(null);
+      const roomsPromise = getToken()
+        ? request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((result) => {
+            if (result.rooms) applyGroupRooms(result.rooms);
+          })
+        : Promise.resolve(null);
       const result = await sessionPromise;
       if (!cancelled) {
         if (!result.ok && (!getToken() || result.status === 401)) setState(fallbackState);
         setHydrated(true);
       }
       feedPromise.catch(() => {});
+      roomsPromise.catch(() => {});
     }
 
     hydrate();
     return () => {
       cancelled = true;
     };
-  }, [fetchFeed, request]);
+  }, [applyGroupRooms, fetchFeed, request]);
 
   useEffect(() => {
     return () => {
@@ -546,6 +714,43 @@ export function useFlameStore() {
     const handleFeedUpdate = () => {
       fetchFeed();
     };
+    const handleReceiveMessage = ({ profileId, message }) => {
+      if (!profileId || !message?.id) return;
+      setState((current) => upsertMessageForProfile(current, profileId, { ...message, status: "sent" }));
+    };
+    const handleMessageSent = ({ profileId, messageId, message }) => {
+      if (!profileId || !messageId) return;
+      setState((current) =>
+        patchMessageForProfile(current, profileId, messageId, (existing) => ({
+          ...existing,
+          ...(message || {}),
+          status: "sent"
+        }))
+      );
+    };
+    const handleMessageError = ({ profileId, messageId, error }) => {
+      if (!profileId || !messageId) return;
+      setLastError(error || "Message failed.");
+      setState((current) =>
+        patchMessageForProfile(current, profileId, messageId, (message) => ({
+          ...message,
+          status: "failed",
+          error: error || "failed to send"
+        }))
+      );
+    };
+    const handleGroupRoomUpdate = ({ room }) => {
+      setState((current) => ({
+        ...current,
+        groupRooms: upsertGroupRoom(current.groupRooms, room, current.auth?.id)
+      }));
+    };
+    const handleGroupRoomDeleted = ({ roomId }) => {
+      setState((current) => ({
+        ...current,
+        groupRooms: current.groupRooms.filter((room) => room.id !== roomId)
+      }));
+    };
     const handleConnect = () => setLastError("");
     const handleConnectError = (error) => {
       setLastError(error?.message || "Realtime messaging is unavailable.");
@@ -555,7 +760,14 @@ export function useFlameStore() {
     socket.on("state:update", handleStateUpdate);
     socket.on("presence:update", handlePresenceUpdate);
     socket.on("typing:update", handleTypingUpdate);
+    socket.on("typing", handleTypingUpdate);
+    socket.on("stopTyping", handleTypingUpdate);
+    socket.on("receiveMessage", handleReceiveMessage);
+    socket.on("messageSent", handleMessageSent);
+    socket.on("messageError", handleMessageError);
     socket.on("feed:update", handleFeedUpdate);
+    socket.on("group-room:update", handleGroupRoomUpdate);
+    socket.on("group-room:deleted", handleGroupRoomDeleted);
     socket.on("connect", handleConnect);
     socket.on("connect_error", handleConnectError);
     pingPresence();
@@ -566,7 +778,14 @@ export function useFlameStore() {
       socket.off("state:update", handleStateUpdate);
       socket.off("presence:update", handlePresenceUpdate);
       socket.off("typing:update", handleTypingUpdate);
+      socket.off("typing", handleTypingUpdate);
+      socket.off("stopTyping", handleTypingUpdate);
+      socket.off("receiveMessage", handleReceiveMessage);
+      socket.off("messageSent", handleMessageSent);
+      socket.off("messageError", handleMessageError);
       socket.off("feed:update", handleFeedUpdate);
+      socket.off("group-room:update", handleGroupRoomUpdate);
+      socket.off("group-room:deleted", handleGroupRoomDeleted);
       socket.off("connect", handleConnect);
       socket.off("connect_error", handleConnectError);
     };
@@ -584,6 +803,9 @@ export function useFlameStore() {
         window.setTimeout(() => {
           request("/session", { method: "GET" });
           fetchFeed();
+          request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((roomsResult) => {
+            if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
+          });
         }, 0);
         return { ok: true, ...result };
       } catch (error) {
@@ -592,7 +814,7 @@ export function useFlameStore() {
         return { ok: false, error: message };
       }
     },
-    [applyServerState, fetchFeed, request]
+    [applyGroupRooms, applyServerState, fetchFeed, request]
   );
 
   const signup = useCallback(
@@ -606,11 +828,14 @@ export function useFlameStore() {
         window.setTimeout(() => {
           request("/session", { method: "GET" });
           fetchFeed();
+          request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((roomsResult) => {
+            if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
+          });
         }, 0);
       }
       return result;
     },
-    [fetchFeed, request]
+    [applyGroupRooms, fetchFeed, request]
   );
 
   const logout = useCallback(async () => {
@@ -699,6 +924,9 @@ export function useFlameStore() {
         from: "me",
         text: trimmed,
         ts: now,
+        senderId: state.auth?.id || "",
+        profileId,
+        status: "sending",
         type: payload.type,
         reactions: {},
         ...(storyReply ? { storyReply } : {}),
@@ -710,27 +938,82 @@ export function useFlameStore() {
             }
           : {})
       };
-      setState((current) => ({
-        ...current,
-        matches: current.matches.map((match) =>
-          match.profileId === profileId
-            ? {
-                ...match,
-                messages: [...match.messages, message]
-              }
-            : match
-        )
-      }));
+      setState((current) => upsertMessageForProfile(current, profileId, message));
+      joinRealtimeRoom({ profileId }).catch(() => {});
 
       sendRealtimeMessage({ profileId, messageId, ...message })
         .then((result) => {
+          if (result.message) {
+            setState((current) => upsertMessageForProfile(current, profileId, { ...result.message, status: "sent" }));
+          } else {
+            setState((current) =>
+              patchMessageForProfile(current, profileId, messageId, (item) => ({ ...item, status: "sent" }))
+            );
+          }
           if (result.state) applyServerState(result.state);
         })
-        .catch(() => {
-          request("/messages", { method: "POST", body: jsonBody({ profileId, messageId, ...message }) });
+        .catch(async () => {
+          const result = await request("/messages", {
+            method: "POST",
+            body: jsonBody({ profileId, messageId, ...message })
+          });
+          if (result.ok) {
+            setState((current) =>
+              upsertMessageForProfile(current, profileId, {
+                ...message,
+                ...(result.message || {}),
+                status: "sent"
+              })
+            );
+          } else {
+            setState((current) =>
+              patchMessageForProfile(current, profileId, messageId, (item) => ({
+                ...item,
+                status: "failed",
+                error: result.error || "failed to send"
+              }))
+            );
+          }
         });
     },
-    [applyServerState, request]
+    [applyServerState, request, state.auth?.id]
+  );
+
+  const retryMessage = useCallback(
+    (profileId, messageId) => {
+      const match = state.matches.find((item) => item.profileId === profileId);
+      const existing = match?.messages?.find((message) => message.id === messageId);
+      if (!existing || existing.status !== "failed") return;
+      const payload = { ...existing, status: "sending", error: "" };
+      setState((current) => upsertMessageForProfile(current, profileId, payload));
+      joinRealtimeRoom({ profileId }).catch(() => {});
+
+      sendRealtimeMessage({ profileId, messageId, ...payload })
+        .then((result) => {
+          setState((current) =>
+            upsertMessageForProfile(current, profileId, {
+              ...payload,
+              ...(result.message || {}),
+              status: "sent"
+            })
+          );
+          if (result.state) applyServerState(result.state);
+        })
+        .catch(async () => {
+          const result = await request("/messages", {
+            method: "POST",
+            body: jsonBody({ profileId, messageId, ...payload })
+          });
+          setState((current) =>
+            patchMessageForProfile(current, profileId, messageId, (message) => ({
+              ...message,
+              status: result.ok ? "sent" : "failed",
+              error: result.ok ? "" : result.error || "failed to send"
+            }))
+          );
+        });
+    },
+    [applyServerState, request, state.matches]
   );
 
   const patchMessageLocal = useCallback((profileId, messageId, updater) => {
@@ -739,9 +1022,11 @@ export function useFlameStore() {
       matches: current.matches.map((match) =>
         match.profileId === profileId
           ? {
-              ...match,
-              messages: match.messages.map((message) =>
-                message.id === messageId ? updater(message) : message
+            ...match,
+              messages: sortedMessages(
+                match.messages.map((message) =>
+                  message.id === messageId ? updater(message) : message
+                )
               )
             }
           : match
@@ -904,6 +1189,7 @@ export function useFlameStore() {
     (profileId) => {
       if (!profileId) return;
       setTypingByProfile((current) => ({ ...current, [profileId]: false }));
+      joinRealtimeRoom({ profileId }).catch(() => {});
       markRealtimeConversationRead({ profileId })
         .then((result) => {
           if (result.state) applyServerState(result.state);
@@ -919,6 +1205,107 @@ export function useFlameStore() {
     if (!profileId) return;
     sendRealtimeTyping({ profileId, typing });
   }, []);
+
+  const refreshGroupRooms = useCallback(async () => {
+    const result = await request("/group-rooms", { method: "GET" }, { skipStateApply: true });
+    if (result.rooms) applyGroupRooms(result.rooms);
+    return result;
+  }, [applyGroupRooms, request]);
+
+  const applyRoomResult = useCallback((result) => {
+    if (result?.room) {
+      setState((current) => ({
+        ...current,
+        groupRooms: upsertGroupRoom(current.groupRooms, result.room, current.auth?.id)
+      }));
+    }
+    return result;
+  }, []);
+
+  const createGroupRoom = useCallback(
+    async (payload) => {
+      const result = await request("/group-rooms", {
+        method: "POST",
+        body: jsonBody(payload)
+      }, { skipStateApply: true });
+      return applyRoomResult(result);
+    },
+    [applyRoomResult, request]
+  );
+
+  const joinGroupRoom = useCallback(
+    async (roomId) => {
+      const result = await request("/group-rooms/join", {
+        method: "POST",
+        body: jsonBody({ roomId })
+      }, { skipStateApply: true });
+      if (result.ok) joinRealtimeRoom({ roomId }).catch(() => {});
+      return applyRoomResult(result);
+    },
+    [applyRoomResult, request]
+  );
+
+  const leaveGroupRoom = useCallback(
+    async (roomId) => {
+      const result = await request("/group-rooms/leave", {
+        method: "POST",
+        body: jsonBody({ roomId })
+      }, { skipStateApply: true });
+      return applyRoomResult(result);
+    },
+    [applyRoomResult, request]
+  );
+
+  const chooseGroupRoomSeat = useCallback(
+    async (roomId, seatIndex) => {
+      const result = await request("/group-rooms/seat", {
+        method: "POST",
+        body: jsonBody({ roomId, seatIndex })
+      }, { skipStateApply: true });
+      if (result.ok) joinRealtimeRoom({ roomId }).catch(() => {});
+      return applyRoomResult(result);
+    },
+    [applyRoomResult, request]
+  );
+
+  const updateGroupRoomMic = useCallback(
+    async (roomId, micOn) => {
+      const result = await request("/group-rooms/mic", {
+        method: "POST",
+        body: jsonBody({ roomId, micOn })
+      }, { skipStateApply: true });
+      return applyRoomResult(result);
+    },
+    [applyRoomResult, request]
+  );
+
+  const sendGroupRoomReaction = useCallback(
+    async (roomId, emoji) => {
+      const result = await request("/group-rooms/reactions", {
+        method: "POST",
+        body: jsonBody({ roomId, emoji })
+      }, { skipStateApply: true });
+      return applyRoomResult(result);
+    },
+    [applyRoomResult, request]
+  );
+
+  const deleteGroupRoom = useCallback(
+    async (roomId) => {
+      const result = await request("/group-rooms", {
+        method: "DELETE",
+        body: jsonBody({ roomId })
+      }, { skipStateApply: true });
+      if (result.ok) {
+        setState((current) => ({
+          ...current,
+          groupRooms: current.groupRooms.filter((room) => room.id !== roomId)
+        }));
+      }
+      return result;
+    },
+    [request]
+  );
 
   const setUserProfile = useCallback(
     async (updates, options = {}) => {
@@ -1195,6 +1582,7 @@ export function useFlameStore() {
     pass,
     addMatch,
     sendMessage,
+    retryMessage,
     reactToMessage,
     unsendMessage,
     removeMessageForYou,
@@ -1204,6 +1592,14 @@ export function useFlameStore() {
     blockUser,
     readConversation,
     sendTypingStatus,
+    refreshGroupRooms,
+    createGroupRoom,
+    joinGroupRoom,
+    leaveGroupRoom,
+    chooseGroupRoomSeat,
+    updateGroupRoomMic,
+    sendGroupRoomReaction,
+    deleteGroupRoom,
     setUserProfile,
     updatePrivacy,
     createPost,

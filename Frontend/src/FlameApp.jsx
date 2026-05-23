@@ -21,6 +21,14 @@ const QUICK_REPLIES = [
   "Coffee this week?",
   "What is your perfect weekend?"
 ];
+const ROOM_EMOJIS = [
+  { id: "heart", symbol: "\u2764\uFE0F", label: "Love" },
+  { id: "laugh", symbol: "\uD83D\uDE02", label: "Laugh" },
+  { id: "wow", symbol: "\uD83D\uDE2E", label: "Wow" },
+  { id: "clap", symbol: "\uD83D\uDC4F", label: "Clap" },
+  { id: "sad", symbol: "\uD83D\uDE22", label: "Sad" },
+  { id: "fire", symbol: "\uD83D\uDD25", label: "Fire" }
+];
 const REACTION_OPTIONS = ["❤️", "😂", "😮", "😢", "👍"];
 
 const ONBOARDING_INTERESTS = [
@@ -395,6 +403,7 @@ export default function FlameApp() {
     pass,
     addMatch,
     sendMessage,
+    retryMessage,
     reactToMessage,
     unsendMessage,
     removeMessageForYou,
@@ -404,6 +413,14 @@ export default function FlameApp() {
     blockUser,
     readConversation,
     sendTypingStatus,
+    refreshGroupRooms,
+    createGroupRoom,
+    joinGroupRoom,
+    leaveGroupRoom,
+    chooseGroupRoomSeat,
+    updateGroupRoomMic,
+    sendGroupRoomReaction,
+    deleteGroupRoom,
     setUserProfile,
     updatePrivacy,
     createPost,
@@ -762,6 +779,50 @@ export default function FlameApp() {
               />
             )}
 
+            {tab === "rooms" && (
+              <GroupRoomsScreen
+                rooms={state.groupRooms}
+                user={state.user}
+                viewerId={state.auth?.id}
+                onRefresh={refreshGroupRooms}
+                onCreateRoom={async (payload) => {
+                  const result = await createGroupRoom(payload);
+                  showToast(result.ok ? "Room created" : result.error);
+                  return result;
+                }}
+                onJoinRoom={async (roomId) => {
+                  const result = await joinGroupRoom(roomId);
+                  showToast(result.ok ? "Joined room" : result.error);
+                  return result;
+                }}
+                onLeaveRoom={async (roomId) => {
+                  const result = await leaveGroupRoom(roomId);
+                  showToast(result.ok ? "Left room" : result.error);
+                  return result;
+                }}
+                onChooseSeat={async (roomId, seatIndex) => {
+                  const result = await chooseGroupRoomSeat(roomId, seatIndex);
+                  if (!result.ok) showToast(result.error);
+                  return result;
+                }}
+                onMic={async (roomId, micOn) => {
+                  const result = await updateGroupRoomMic(roomId, micOn);
+                  if (!result.ok) showToast(result.error);
+                  return result;
+                }}
+                onReaction={async (roomId, emoji) => {
+                  const result = await sendGroupRoomReaction(roomId, emoji);
+                  if (!result.ok) showToast(result.error);
+                  return result;
+                }}
+                onDeleteRoom={async (roomId) => {
+                  const result = await deleteGroupRoom(roomId);
+                  showToast(result.ok ? "Room closed" : result.error);
+                  return result;
+                }}
+              />
+            )}
+
             {tab === "messages" && (
               <MessagesScreen
                 state={state}
@@ -888,6 +949,7 @@ export default function FlameApp() {
                   .filter((item) => item.id !== matchedProfile.id)}
                 isTyping={Boolean(typingByProfile[matchedProfile.id])}
                 onSend={(content) => sendMessage(matchedProfile.id, content)}
+                onRetry={(messageId) => retryMessage(matchedProfile.id, messageId)}
                 onForward={(message, target) => {
                   const type = message.type || "text";
                   const content =
@@ -4433,6 +4495,7 @@ function ChatScreen({
   forwardTargets = [],
   isTyping,
   onSend,
+  onRetry,
   onForward,
   onReport,
   onReact,
@@ -4501,8 +4564,9 @@ function ChatScreen({
   );
   const searchedMessages = useMemo(() => {
     const q = conversationQuery.trim().toLowerCase();
-    if (!q) return messages;
-    return messages.filter((message) =>
+    const sorted = [...messages].sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0));
+    if (!q) return sorted;
+    return sorted.filter((message) =>
       [message.text, message.name, message.type, message.storyReply?.replyText, message.storyReply?.ownerName]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q))
@@ -5260,6 +5324,22 @@ function ChatScreen({
                   <span>{seenText(message.seenAt)}</span>
                 </div>
               )}
+              {own && !message.unsent && message.status && (
+                <div className={`message-send-status ${message.status}`}>
+                  <span>
+                    {message.status === "sending"
+                      ? "sending..."
+                      : message.status === "failed"
+                        ? "failed to send"
+                        : "sent"}
+                  </span>
+                  {message.status === "failed" && (
+                    <button type="button" onClick={() => onRetry?.(message.id)}>
+                      Retry
+                    </button>
+                  )}
+                </div>
+              )}
               {isActionOpen(message.id, "react") && (
                 <div className={`message-panel reaction-picker ${own ? "me" : "them"}`}>
                   {REACTION_OPTIONS.map((reaction) => (
@@ -5409,6 +5489,276 @@ function ChatScreen({
           />
         )}
       </AnimatePresence>
+    </section>
+  );
+}
+
+function roomEmojiSymbol(id) {
+  return ROOM_EMOJIS.find((emoji) => emoji.id === id)?.symbol || ROOM_EMOJIS[0].symbol;
+}
+
+function GroupRoomsScreen({
+  rooms = [],
+  user,
+  viewerId,
+  onRefresh,
+  onCreateRoom,
+  onJoinRoom,
+  onLeaveRoom,
+  onChooseSeat,
+  onMic,
+  onReaction,
+  onDeleteRoom
+}) {
+  const [activeRoomId, setActiveRoomId] = useState("");
+  const [form, setForm] = useState({ name: "", description: "", maxMembers: 6 });
+  const [creating, setCreating] = useState(false);
+  const [busyAction, setBusyAction] = useState("");
+  const [now, setNow] = useState(Date.now());
+  const activeRoom = rooms.find((room) => room.id === activeRoomId) || rooms.find((room) => room.joined) || rooms[0] || null;
+  const viewerSeat = activeRoom?.seats?.find((seat) => seat.user?.id === viewerId) || null;
+
+  useEffect(() => {
+    onRefresh?.();
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [onRefresh]);
+
+  useEffect(() => {
+    if (activeRoomId && !rooms.some((room) => room.id === activeRoomId)) setActiveRoomId("");
+  }, [activeRoomId, rooms]);
+
+  const updateForm = (key, value) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const submitRoom = async (event) => {
+    event.preventDefault();
+    if (!form.name.trim() || !form.description.trim()) return;
+    setCreating(true);
+    const result = await onCreateRoom?.({
+      name: form.name,
+      description: form.description,
+      maxMembers: form.maxMembers
+    });
+    setCreating(false);
+    if (result?.ok) {
+      setForm({ name: "", description: "", maxMembers: 6 });
+      if (result.room?.id) setActiveRoomId(result.room.id);
+    }
+  };
+
+  const runRoomAction = async (key, action) => {
+    setBusyAction(key);
+    const result = await action();
+    setBusyAction("");
+    return result;
+  };
+
+  const joinRoom = (room) =>
+    runRoomAction(`join-${room.id}`, async () => {
+      const result = await onJoinRoom?.(room.id);
+      if (result?.ok) setActiveRoomId(result.room?.id || room.id);
+      return result;
+    });
+
+  const leaveRoom = (room) =>
+    runRoomAction(`leave-${room.id}`, async () => {
+      const result = await onLeaveRoom?.(room.id);
+      if (result?.ok && activeRoomId === room.id) setActiveRoomId("");
+      return result;
+    });
+
+  return (
+    <section className="screen group-rooms-screen" aria-label="Group Rooms">
+      <header className="rooms-header">
+        <div>
+          <span className="rooms-kicker">Live hangouts</span>
+          <h1>Group Rooms</h1>
+          <p>Create a room, pick a seat, react, and hang out with Flame people.</p>
+        </div>
+        <button type="button" className="rooms-refresh-btn" onClick={onRefresh}>
+          Refresh
+        </button>
+      </header>
+
+      <div className="rooms-layout">
+        <aside className="rooms-sidebar">
+          <form className="room-create-form" onSubmit={submitRoom}>
+            <div className="form-title">
+              <RoomsIcon />
+              <span>Create Room</span>
+            </div>
+            <label>
+              <span>Room Name</span>
+              <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} maxLength={80} required />
+            </label>
+            <label>
+              <span>Room Description</span>
+              <textarea value={form.description} onChange={(event) => updateForm("description", event.target.value)} maxLength={500} required />
+            </label>
+            <label>
+              <span>Maximum Members</span>
+              <input
+                type="number"
+                min="2"
+                max="24"
+                value={form.maxMembers}
+                onChange={(event) => updateForm("maxMembers", Math.max(2, Math.min(24, Number(event.target.value) || 2)))}
+              />
+            </label>
+            <button type="submit" className="cta room-create-btn" disabled={creating || !form.name.trim() || !form.description.trim()}>
+              {creating ? "Creating..." : "Create room"}
+            </button>
+          </form>
+
+          <div className="rooms-list">
+            <div className="rooms-list-head">
+              <span>Available rooms</span>
+              <b>{rooms.length}</b>
+            </div>
+            {rooms.length === 0 ? (
+              <div className="rooms-empty">No rooms yet.</div>
+            ) : (
+              rooms.map((room) => (
+                <button
+                  key={room.id}
+                  type="button"
+                  className={`room-list-card ${activeRoom?.id === room.id ? "active" : ""}`}
+                  onClick={() => setActiveRoomId(room.id)}
+                >
+                  <span>
+                    <b>{room.name}</b>
+                    <small>{room.description}</small>
+                  </span>
+                  <i>{room.currentMembers}/{room.maxMembers}</i>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
+
+        <main className="room-stage">
+          {activeRoom ? (
+            <>
+              <div className="room-stage-head">
+                <div>
+                  <span>{activeRoom.currentMembers}/{activeRoom.maxMembers} members</span>
+                  <h2>{activeRoom.name}</h2>
+                  <p>{activeRoom.description}</p>
+                </div>
+                <div className="room-stage-actions">
+                  {activeRoom.joined ? (
+                    <button type="button" onClick={() => leaveRoom(activeRoom)} disabled={busyAction === `leave-${activeRoom.id}`}>
+                      Leave
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => joinRoom(activeRoom)}
+                      disabled={activeRoom.isFull || busyAction === `join-${activeRoom.id}`}
+                    >
+                      {activeRoom.isFull ? "Full" : "Join"}
+                    </button>
+                  )}
+                  {activeRoom.canDelete && (
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => {
+                        if (window.confirm(`Close ${activeRoom.name}?`)) onDeleteRoom?.(activeRoom.id);
+                      }}
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="seating-layout" style={{ "--seat-count": activeRoom.maxMembers }}>
+                {activeRoom.seats.map((seat) => {
+                  const mine = seat.user?.id === viewerId;
+                  const recentReactions = activeRoom.reactions
+                    .filter((reaction) => reaction.seatIndex === seat.seatIndex && now - reaction.createdAt < 4500)
+                    .slice(-3);
+                  return (
+                    <div key={seat.seatIndex} className={`room-seat ${seat.available ? "available" : "occupied"} ${mine ? "mine" : ""}`}>
+                      <AnimatePresence>
+                        {recentReactions.map((reaction) => (
+                          <motion.span
+                            key={reaction.id}
+                            className="room-reaction-float"
+                            initial={{ opacity: 0, y: 18, scale: 0.8 }}
+                            animate={{ opacity: 1, y: -30, scale: 1.12 }}
+                            exit={{ opacity: 0, y: -52, scale: 0.8 }}
+                            transition={{ duration: 0.45 }}
+                          >
+                            {roomEmojiSymbol(reaction.emoji)}
+                          </motion.span>
+                        ))}
+                      </AnimatePresence>
+                      {seat.available ? (
+                        <button
+                          type="button"
+                          className="available-seat-btn"
+                          onClick={() => runRoomAction(`seat-${seat.seatIndex}`, () => onChooseSeat?.(activeRoom.id, seat.seatIndex))}
+                          disabled={busyAction === `seat-${seat.seatIndex}` || (activeRoom.isFull && !activeRoom.joined)}
+                        >
+                          <span>Available Seat</span>
+                          <small>Tap to sit</small>
+                        </button>
+                      ) : (
+                        <>
+                          <img src={seat.user?.image || LOGO_SRC} alt="" />
+                          <strong>{seat.user?.name || "Flame user"}</strong>
+                          <span className={`seat-mic-status ${seat.micOn ? "on" : ""}`}>
+                            {seat.micOn ? "Mic on" : "Mic off"}
+                          </span>
+                          <button
+                            type="button"
+                            className={`seat-mic-btn ${seat.micOn ? "on" : ""}`}
+                            onClick={() => mine && onMic?.(activeRoom.id, !seat.micOn)}
+                            disabled={!mine}
+                            aria-label={mine ? "Toggle microphone" : `${seat.user?.name || "User"} microphone status`}
+                          >
+                            <MicIcon />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="room-social-bar">
+                <div>
+                  <img src={user?.image || LOGO_SRC} alt="" />
+                  <span>{viewerSeat ? `Seat ${viewerSeat.seatIndex + 1}` : "Choose a seat to react"}</span>
+                </div>
+                <div className="room-emoji-bar">
+                  {ROOM_EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji.id}
+                      type="button"
+                      onClick={() => onReaction?.(activeRoom.id, emoji.id)}
+                      disabled={!viewerSeat}
+                      aria-label={emoji.label}
+                    >
+                      {emoji.symbol}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="room-stage-empty">
+              <RoomsIcon />
+              <h2>No room selected</h2>
+              <p>Create or join a room to start hanging out.</p>
+            </div>
+          )}
+        </main>
+      </div>
     </section>
   );
 }
@@ -6562,6 +6912,7 @@ function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogo
   const items = [
     { id: "home", label: "Home", icon: <HomeIcon /> },
     { id: "discover", label: "Discover", desktopLabel: "Explore", icon: <HeartIcon /> },
+    { id: "rooms", label: "Rooms", icon: <RoomsIcon /> },
     { id: "matches", label: "Matches", icon: <FlameIcon />, mobileOnly: true },
     { id: "messages", label: "Messages", badge: unread, icon: <MessageIcon /> },
     { id: "profile", label: "Profile", icon: <UserIcon /> },
@@ -6934,6 +7285,17 @@ function HeartIcon({ fill = false }) {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill={fill ? "currentColor" : "none"} stroke="currentColor" strokeWidth={fill ? "0" : "2"} strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+}
+
+function RoomsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="3" />
+      <circle cx="16" cy="8" r="3" />
+      <path d="M3.5 20c.7-3.4 2.3-5 4.5-5s3.8 1.6 4.5 5" />
+      <path d="M11.5 20c.7-3.4 2.3-5 4.5-5s3.8 1.6 4.5 5" />
     </svg>
   );
 }

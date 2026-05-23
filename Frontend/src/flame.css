@@ -4961,6 +4961,469 @@ body {
   }
 }
 
+.flame-app .message-send-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  margin: -6px 54px 4px auto;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: rgba(255, 221, 231, 0.72);
+}
+
+.flame-app .message-send-status.sent {
+  color: rgba(255, 221, 231, 0.55);
+}
+
+.flame-app .message-send-status.failed {
+  color: #ff7a9d;
+}
+
+.flame-app .message-send-status button {
+  border: 1px solid rgba(255, 110, 150, 0.42);
+  background: rgba(255, 74, 126, 0.12);
+  color: #ffd5df;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.flame-app .group-rooms-screen {
+  min-height: 100%;
+  padding: clamp(18px, 3vw, 34px);
+  color: var(--text);
+}
+
+.flame-app .rooms-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.flame-app .rooms-kicker {
+  display: inline-flex;
+  color: var(--accent);
+  font-weight: 900;
+  letter-spacing: 0;
+  margin-bottom: 6px;
+}
+
+.flame-app .rooms-header h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 0.95;
+}
+
+.flame-app .rooms-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  max-width: 620px;
+  font-weight: 700;
+}
+
+.flame-app .rooms-refresh-btn,
+.flame-app .room-stage-actions button,
+.flame-app .room-create-btn {
+  border: 1px solid rgba(255, 94, 145, 0.35);
+  background: linear-gradient(135deg, #ff477f, #ff725f);
+  color: white;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 16px 34px rgba(255, 55, 116, 0.22);
+}
+
+.flame-app .rooms-refresh-btn {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+  color: var(--text);
+}
+
+.flame-app .rooms-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.flame-app .rooms-sidebar,
+.flame-app .room-stage {
+  min-width: 0;
+}
+
+.flame-app .room-create-form,
+.flame-app .rooms-list,
+.flame-app .room-stage {
+  border: 1px solid rgba(255, 94, 145, 0.28);
+  background: rgba(42, 12, 25, 0.86);
+  border-radius: 8px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+}
+
+.flame-app .room-create-form {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.flame-app .room-create-form .form-title,
+.flame-app .rooms-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 900;
+}
+
+.flame-app .room-create-form .form-title {
+  justify-content: flex-start;
+  color: #ffd5df;
+}
+
+.flame-app .room-create-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.flame-app .room-create-form input,
+.flame-app .room-create-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255, 94, 145, 0.32);
+  background: rgba(8, 1, 6, 0.5);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font: inherit;
+  font-weight: 800;
+}
+
+.flame-app .room-create-form textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.flame-app .rooms-list {
+  padding: 14px;
+}
+
+.flame-app .rooms-list-head b {
+  color: var(--accent);
+}
+
+.flame-app .rooms-empty {
+  margin-top: 12px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.flame-app .room-list-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  border: 1px solid rgba(255, 94, 145, 0.22);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.flame-app .room-list-card.active {
+  border-color: rgba(255, 94, 145, 0.75);
+  background: rgba(255, 74, 126, 0.16);
+}
+
+.flame-app .room-list-card b,
+.flame-app .room-list-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flame-app .room-list-card small {
+  color: var(--muted);
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.flame-app .room-list-card i {
+  font-style: normal;
+  color: #ff77a2;
+  font-weight: 900;
+}
+
+.flame-app .room-stage {
+  padding: clamp(16px, 3vw, 26px);
+  min-height: 620px;
+}
+
+.flame-app .room-stage-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.flame-app .room-stage-head span {
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.flame-app .room-stage-head h2 {
+  margin: 5px 0;
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.flame-app .room-stage-head p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.flame-app .room-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.flame-app .room-stage-actions .danger {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffd5df;
+  box-shadow: none;
+}
+
+.flame-app .room-stage-actions button:disabled,
+.flame-app .available-seat-btn:disabled,
+.flame-app .room-emoji-bar button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.flame-app .seating-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.flame-app .room-seat {
+  position: relative;
+  min-height: 176px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  text-align: center;
+  border: 1px solid rgba(255, 94, 145, 0.28);
+  background: radial-gradient(circle at top, rgba(255, 103, 146, 0.18), rgba(8, 1, 6, 0.42));
+  border-radius: 8px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.flame-app .room-seat.mine {
+  border-color: rgba(255, 132, 171, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(255, 132, 171, 0.22), 0 16px 40px rgba(255, 74, 126, 0.15);
+}
+
+.flame-app .room-seat img {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 132, 171, 0.78);
+}
+
+.flame-app .room-seat strong,
+.flame-app .seat-mic-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .seat-mic-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.flame-app .seat-mic-status.on {
+  color: #7dffbd;
+}
+
+.flame-app .seat-mic-btn {
+  width: 42px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(255, 94, 145, 0.34);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.flame-app .seat-mic-btn.on {
+  color: #052715;
+  background: #7dffbd;
+  border-color: #7dffbd;
+  box-shadow: 0 0 26px rgba(125, 255, 189, 0.4);
+}
+
+.flame-app .seat-mic-btn:disabled {
+  cursor: default;
+  opacity: 0.74;
+}
+
+.flame-app .available-seat-btn {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  border: 1px dashed rgba(255, 132, 171, 0.48);
+  background: rgba(255, 255, 255, 0.035);
+  color: #ffd5df;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.flame-app .available-seat-btn small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.flame-app .room-reaction-float {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  font-size: 2rem;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.35));
+}
+
+.flame-app .room-social-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 12px;
+  border: 1px solid rgba(255, 94, 145, 0.22);
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 8px;
+}
+
+.flame-app .room-social-bar > div:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.flame-app .room-social-bar img {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.flame-app .room-emoji-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.flame-app .room-emoji-bar button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 94, 145, 0.28);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.flame-app .room-stage-empty {
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.flame-app .room-stage-empty svg {
+  width: 56px;
+  height: 56px;
+  color: var(--accent);
+}
+
+.flame-app .room-stage-empty h2,
+.flame-app .room-stage-empty p {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .flame-app .rooms-header,
+  .flame-app .room-stage-head,
+  .flame-app .room-social-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .flame-app .rooms-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flame-app .room-stage-actions,
+  .flame-app .room-emoji-bar {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .flame-app .group-rooms-screen {
+    padding: 16px 12px 104px;
+  }
+
+  .flame-app .seating-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .flame-app .room-seat {
+    min-height: 154px;
+    padding: 12px;
+  }
+
+  .flame-app .rooms-header h1 {
+    font-size: 2.25rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flame-app *,
   .flame-app *::before,

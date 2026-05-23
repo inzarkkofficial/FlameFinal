@@ -61,20 +61,27 @@ export function disconnectRealtime() {
 }
 
 export function sendRealtimeMessage(payload) {
-  return new Promise((resolve, reject) => {
-    const socket = connectRealtime();
-    socket.timeout(20000).emit("message:send", payload, (error, response) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      if (!response?.ok) {
-        reject(new Error(response?.error || "Message failed."));
-        return;
-      }
-      resolve(response);
+  const emitMessage = (eventName, timeoutMs) =>
+    new Promise((resolve, reject) => {
+      const socket = connectRealtime();
+      socket.timeout(timeoutMs).emit(eventName, payload, (error, response) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!response?.ok) {
+          reject(new Error(response?.error || "Message failed."));
+          return;
+        }
+        resolve(response);
+      });
     });
-  });
+
+  return emitMessage("sendMessage", 7000).catch(() => emitMessage("message:send", 20000));
+}
+
+export function joinRealtimeRoom(payload) {
+  return sendRealtimeAction("joinRoom", payload, "Could not join realtime room.", 3000);
 }
 
 function sendRealtimeAction(eventName, payload, fallbackMessage, timeoutMs = 5000) {
@@ -112,6 +119,7 @@ export function removeRealtimeMessageForYou(payload) {
 
 export function sendRealtimeTyping(payload) {
   const socket = connectRealtime();
+  socket.emit(payload?.typing ? "typing" : "stopTyping", payload);
   socket.emit("typing:update", payload);
 }
 

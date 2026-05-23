@@ -18,6 +18,7 @@ const REMOVED_BOT_IDS = new Set([
 ]);
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 const STORY_MUSIC_SRC_MAX_CHARS = 14_000_000;
+const ROOM_REACTIONS = new Set(["heart", "laugh", "wow", "clap", "sad", "fire"]);
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 
 const defaultState = {
@@ -100,6 +101,16 @@ function verifyPassword(password, stored) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function withoutMongoId(document) {
+  if (!document || typeof document !== "object") return document;
+  const { _id, ...rest } = document;
+  return rest;
+}
+
+function conversationIdFor(userId, profileId) {
+  return [String(userId || ""), String(profileId || "")].sort().join(":");
 }
 
 function parseBirthDate(value) {
@@ -610,6 +621,110 @@ function publicFeedPost(post, userMap, activeUserIds, viewerId) {
   };
 }
 
+function normalizeGroupRoom(room) {
+  const maxMembers = Math.max(2, Math.min(24, Number(room?.maxMembers) || 6));
+  const members = [];
+  const seenMembers = new Set();
+  for (const member of Array.isArray(room?.members) ? room.members : []) {
+    const userId = String(member?.userId || "");
+    if (!userId || seenMembers.has(userId)) continue;
+    seenMembers.add(userId);
+    members.push({ userId, joinedAt: Number(member?.joinedAt) || Date.now() });
+  }
+
+  const memberIds = new Set(members.map((member) => member.userId));
+  const seats = [];
+  const usedSeatIndexes = new Set();
+  for (const seat of Array.isArray(room?.seats) ? room.seats : []) {
+    const seatIndex = Math.max(0, Math.min(maxMembers - 1, Number(seat?.seatIndex) || 0));
+    const userId = String(seat?.userId || "");
+    if (!userId || !memberIds.has(userId) || usedSeatIndexes.has(seatIndex)) continue;
+    usedSeatIndexes.add(seatIndex);
+    seats.push({
+      seatIndex,
+      userId,
+      micOn: Boolean(seat?.micOn),
+      updatedAt: Number(seat?.updatedAt) || Date.now()
+    });
+  }
+
+  const reactions = (Array.isArray(room?.reactions) ? room.reactions : [])
+    .map((reaction) => ({
+      id: String(reaction?.id || randomUUID()),
+      userId: String(reaction?.userId || ""),
+      seatIndex: Math.max(0, Math.min(maxMembers - 1, Number(reaction?.seatIndex) || 0)),
+      emoji: ROOM_REACTIONS.has(String(reaction?.emoji || "")) ? String(reaction.emoji) : "heart",
+      createdAt: Number(reaction?.createdAt) || Date.now()
+    }))
+    .filter((reaction) => reaction.userId)
+    .slice(-40);
+
+  return {
+    id: String(room?.id || randomUUID()),
+    name: String(room?.name || "Untitled Room").trim().slice(0, 80) || "Untitled Room",
+    description: String(room?.description || "").trim().slice(0, 500),
+    maxMembers,
+    creatorId: String(room?.creatorId || ""),
+    members: members.slice(0, maxMembers),
+    seats,
+    reactions,
+    createdAt: Number(room?.createdAt) || Date.now(),
+    updatedAt: Number(room?.updatedAt) || Date.now(),
+    closedAt: Number(room?.closedAt) || 0
+  };
+}
+
+function publicGroupRoom(room, userMap, activeUserIds, viewerId) {
+  const normalized = normalizeGroupRoom(room);
+  if (normalized.closedAt) return null;
+  const memberIds = new Set(normalized.members.map((member) => member.userId));
+  const seats = Array.from({ length: normalized.maxMembers }, (_, index) => {
+    const seat = normalized.seats.find((item) => item.seatIndex === index);
+    if (!seat) {
+      return {
+        seatIndex: index,
+        available: true,
+        user: null,
+        micOn: false
+      };
+    }
+
+    return {
+      seatIndex: index,
+      available: false,
+      user: publicUserSummary(userMap.get(seat.userId), activeUserIds, viewerId),
+      micOn: Boolean(seat.micOn),
+      occupiedAt: seat.updatedAt
+    };
+  });
+  const viewerSeat = normalized.seats.find((seat) => seat.userId === viewerId);
+
+  return {
+    id: normalized.id,
+    name: normalized.name,
+    description: normalized.description,
+    maxMembers: normalized.maxMembers,
+    currentMembers: normalized.members.length,
+    isFull: normalized.members.length >= normalized.maxMembers,
+    creator: publicUserSummary(userMap.get(normalized.creatorId), activeUserIds, viewerId),
+    creatorId: normalized.creatorId,
+    canDelete: normalized.creatorId === viewerId,
+    joined: memberIds.has(viewerId),
+    viewerSeatIndex: viewerSeat ? viewerSeat.seatIndex : null,
+    members: normalized.members.map((member) => ({
+      ...publicUserSummary(userMap.get(member.userId), activeUserIds, viewerId),
+      joinedAt: member.joinedAt
+    })),
+    seats,
+    reactions: normalized.reactions.map((reaction) => ({
+      ...reaction,
+      user: publicUserSummary(userMap.get(reaction.userId), activeUserIds, viewerId)
+    })),
+    createdAt: normalized.createdAt,
+    updatedAt: normalized.updatedAt
+  };
+}
+
 function valueMatches(actualValues, expected) {
   if (expected && typeof expected === "object" && !Array.isArray(expected)) {
     if ("$in" in expected) {
@@ -889,6 +1004,7 @@ class LocalJsonStore {
     this.users = new LocalCollection(this, "users");
     this.sessions = new LocalCollection(this, "sessions");
     this.posts = new LocalCollection(this, "posts");
+    this.groupRooms = new LocalCollection(this, "groupRooms");
     this.supportTickets = new LocalCollection(this, "supportTickets");
     this.persist();
   }
@@ -908,6 +1024,7 @@ class LocalJsonStore {
           posts: Array.isArray(parsed.posts)
             ? parsed.posts.filter((post) => !REMOVED_BOT_IDS.has(String(post?.authorId || "")))
             : [],
+          groupRooms: Array.isArray(parsed.groupRooms) ? parsed.groupRooms.map(normalizeGroupRoom) : [],
           supportTickets: Array.isArray(parsed.supportTickets) ? parsed.supportTickets : []
         };
       } catch {
@@ -959,6 +1076,7 @@ function seedLocalData() {
     users: [],
     sessions: [],
     posts: [],
+    groupRooms: [],
     supportTickets: []
   };
 }
@@ -1028,6 +1146,7 @@ export class FlameDatabase {
     this.users = this.db.collection("users");
     this.sessions = this.db.collection("sessions");
     this.posts = this.db.collection("posts");
+    this.groupRooms = this.db.collection("groupRooms");
     this.supportTickets = this.db.collection("supportTickets");
     await this.db.command({ ping: 1 });
 
@@ -1049,6 +1168,9 @@ export class FlameDatabase {
       [this.posts, { authorId: 1 }],
       [this.posts, { tags: 1 }],
       [this.posts, { createdAt: -1 }],
+      [this.groupRooms, { id: 1 }, { unique: true }],
+      [this.groupRooms, { creatorId: 1 }],
+      [this.groupRooms, { updatedAt: -1 }],
       [this.supportTickets, { userId: 1 }],
       [this.supportTickets, { createdAt: -1 }]
     ];
@@ -1070,6 +1192,7 @@ export class FlameDatabase {
     this.users = store.users;
     this.sessions = store.sessions;
     this.posts = store.posts;
+    this.groupRooms = store.groupRooms;
     this.supportTickets = store.supportTickets;
     this.storageMode = "local";
     console.warn(`Using local Flame datastore at ${this.localDbPath}. Reason: ${reason}`);
@@ -1206,6 +1329,214 @@ export class FlameDatabase {
     const activeUserIds = await this.activeUserIds();
 
     return posts.map((post) => publicFeedPost(post, userMap, activeUserIds, viewerId));
+  }
+
+  async groupRoomUserMap(rooms) {
+    const userIds = new Set();
+    for (const rawRoom of rooms) {
+      const room = normalizeGroupRoom(rawRoom);
+      if (room.creatorId) userIds.add(room.creatorId);
+      for (const member of room.members) if (member.userId) userIds.add(member.userId);
+      for (const seat of room.seats) if (seat.userId) userIds.add(seat.userId);
+      for (const reaction of room.reactions) if (reaction.userId) userIds.add(reaction.userId);
+    }
+
+    const users = userIds.size
+      ? await this.users.find({ id: { $in: Array.from(userIds) } }).project(PUBLIC_USER_PROJECTION).toArray()
+      : [];
+    return new Map(users.map((user) => [user.id, normalizeUser(user)]));
+  }
+
+  async publicGroupRooms(rooms, viewerId) {
+    const userMap = await this.groupRoomUserMap(rooms);
+    const activeUserIds = await this.activeUserIds();
+    return rooms
+      .map((room) => publicGroupRoom(room, userMap, activeUserIds, viewerId))
+      .filter(Boolean);
+  }
+
+  async publicGroupRoom(room, viewerId) {
+    const rooms = await this.publicGroupRooms([room], viewerId);
+    return rooms[0] || null;
+  }
+
+  async saveGroupRoom(room) {
+    const normalized = normalizeGroupRoom(room);
+    const cleanRoom = withoutMongoId(normalized);
+    const existing = await this.groupRooms.findOne({ id: cleanRoom.id }, { projection: { _id: 0, id: 1 } });
+    if (existing) {
+      await this.groupRooms.updateOne({ id: cleanRoom.id }, { $set: cleanRoom });
+    } else {
+      await this.groupRooms.insertOne(cleanRoom);
+    }
+    return cleanRoom;
+  }
+
+  async loadGroupRoom(roomId) {
+    const id = String(roomId || "");
+    const room = id ? await this.groupRooms.findOne({ id }, { projection: { _id: 0 } }) : null;
+    if (!room) {
+      const error = new Error("Room not found.");
+      error.status = 404;
+      throw error;
+    }
+    const normalized = normalizeGroupRoom(room);
+    if (normalized.closedAt) {
+      const error = new Error("This room is already closed.");
+      error.status = 410;
+      throw error;
+    }
+    return normalized;
+  }
+
+  async listGroupRooms(user) {
+    const rooms = await this.groupRooms
+      .find({ closedAt: 0 })
+      .project({ _id: 0 })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(80)
+      .toArray();
+    return this.publicGroupRooms(rooms, normalizeUser(user).id);
+  }
+
+  async createGroupRoom(user, { name, description, maxMembers }) {
+    const normalizedUser = normalizeUser(user);
+    const now = Date.now();
+    const room = await this.saveGroupRoom({
+      id: randomUUID(),
+      name,
+      description,
+      maxMembers,
+      creatorId: normalizedUser.id,
+      members: [{ userId: normalizedUser.id, joinedAt: now }],
+      seats: [],
+      reactions: [],
+      createdAt: now,
+      updatedAt: now,
+      closedAt: 0
+    });
+    return this.publicGroupRoom(room, normalizedUser.id);
+  }
+
+  async joinGroupRoom(user, roomId) {
+    const normalizedUser = normalizeUser(user);
+    const room = await this.loadGroupRoom(roomId);
+    const alreadyJoined = room.members.some((member) => member.userId === normalizedUser.id);
+    if (!alreadyJoined) {
+      if (room.members.length >= room.maxMembers) {
+        const error = new Error("This room is already full.");
+        error.status = 409;
+        throw error;
+      }
+      room.members.push({ userId: normalizedUser.id, joinedAt: Date.now() });
+    }
+    room.updatedAt = Date.now();
+    const savedRoom = await this.saveGroupRoom(room);
+    return this.publicGroupRoom(savedRoom, normalizedUser.id);
+  }
+
+  async leaveGroupRoom(user, roomId) {
+    const normalizedUser = normalizeUser(user);
+    const room = await this.loadGroupRoom(roomId);
+    room.members = room.members.filter((member) => member.userId !== normalizedUser.id);
+    room.seats = room.seats.filter((seat) => seat.userId !== normalizedUser.id);
+    room.reactions = room.reactions.filter((reaction) => reaction.userId !== normalizedUser.id);
+    room.updatedAt = Date.now();
+    const savedRoom = await this.saveGroupRoom(room);
+    return this.publicGroupRoom(savedRoom, normalizedUser.id);
+  }
+
+  async chooseGroupRoomSeat(user, { roomId, seatIndex }) {
+    const normalizedUser = normalizeUser(user);
+    const room = await this.loadGroupRoom(roomId);
+    const index = Number(seatIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= room.maxMembers) {
+      const error = new Error("Choose an available seat.");
+      error.status = 400;
+      throw error;
+    }
+
+    const alreadyJoined = room.members.some((member) => member.userId === normalizedUser.id);
+    if (!alreadyJoined) {
+      if (room.members.length >= room.maxMembers) {
+        const error = new Error("This room is already full.");
+        error.status = 409;
+        throw error;
+      }
+      room.members.push({ userId: normalizedUser.id, joinedAt: Date.now() });
+    }
+
+    const occupiedByOther = room.seats.some((seat) => seat.seatIndex === index && seat.userId !== normalizedUser.id);
+    if (occupiedByOther) {
+      const error = new Error("That seat is already taken.");
+      error.status = 409;
+      throw error;
+    }
+
+    const previousSeat = room.seats.find((seat) => seat.userId === normalizedUser.id);
+    room.seats = room.seats.filter((seat) => seat.userId !== normalizedUser.id && seat.seatIndex !== index);
+    room.seats.push({
+      seatIndex: index,
+      userId: normalizedUser.id,
+      micOn: Boolean(previousSeat?.micOn),
+      updatedAt: Date.now()
+    });
+    room.updatedAt = Date.now();
+    const savedRoom = await this.saveGroupRoom(room);
+    return this.publicGroupRoom(savedRoom, normalizedUser.id);
+  }
+
+  async updateGroupRoomMic(user, { roomId, micOn }) {
+    const normalizedUser = normalizeUser(user);
+    const room = await this.loadGroupRoom(roomId);
+    const seat = room.seats.find((item) => item.userId === normalizedUser.id);
+    if (!seat) {
+      const error = new Error("Choose a seat before using the mic.");
+      error.status = 409;
+      throw error;
+    }
+    seat.micOn = Boolean(micOn);
+    seat.updatedAt = Date.now();
+    room.updatedAt = Date.now();
+    const savedRoom = await this.saveGroupRoom(room);
+    return this.publicGroupRoom(savedRoom, normalizedUser.id);
+  }
+
+  async sendGroupRoomReaction(user, { roomId, emoji }) {
+    const normalizedUser = normalizeUser(user);
+    const room = await this.loadGroupRoom(roomId);
+    const seat = room.seats.find((item) => item.userId === normalizedUser.id);
+    if (!seat) {
+      const error = new Error("Choose a seat before sending a reaction.");
+      error.status = 409;
+      throw error;
+    }
+    const reaction = ROOM_REACTIONS.has(String(emoji || "")) ? String(emoji) : "heart";
+    room.reactions = [
+      ...room.reactions,
+      {
+        id: randomUUID(),
+        userId: normalizedUser.id,
+        seatIndex: seat.seatIndex,
+        emoji: reaction,
+        createdAt: Date.now()
+      }
+    ].slice(-40);
+    room.updatedAt = Date.now();
+    const savedRoom = await this.saveGroupRoom(room);
+    return this.publicGroupRoom(savedRoom, normalizedUser.id);
+  }
+
+  async deleteGroupRoom(user, roomId) {
+    const normalizedUser = normalizeUser(user);
+    const room = await this.loadGroupRoom(roomId);
+    if (room.creatorId !== normalizedUser.id) {
+      const error = new Error("Only the room creator can close this room.");
+      error.status = 403;
+      throw error;
+    }
+    await this.groupRooms.deleteOne({ id: room.id });
+    return { roomId: room.id };
   }
 
   async findUserByEmail(email) {
@@ -1852,11 +2183,16 @@ export class FlameDatabase {
     }
     const now = Date.now();
     const id = messageId || randomUUID();
+    const conversationId = conversationIdFor(normalizedSender.id, profileId);
     const replyPreview = messageStoryReplyPreview(storyReply);
     const baseMessage = {
       id,
       text,
       ts: now,
+      senderId: normalizedSender.id,
+      profileId,
+      conversationId,
+      status: "sent",
       type,
       reactions: {},
       ...(replyPreview ? { storyReply: replyPreview } : {}),
@@ -1865,7 +2201,7 @@ export class FlameDatabase {
     const senderMessage = { ...baseMessage, text: senderText || text, from: "me" };
 
     if (recipient) {
-      const recipientMessage = { ...baseMessage, text: recipientText || text, from: "them" };
+      const recipientMessage = { ...baseMessage, profileId: normalizedSender.id, text: recipientText || text, from: "them" };
       const [savedSender, savedRecipient] = await Promise.all([
         this.appendMessagesToUser(normalizedSender, normalizedRecipient.id, [senderMessage]),
         this.appendMessagesToUser(normalizedRecipient, normalizedSender.id, [recipientMessage])
@@ -1874,6 +2210,9 @@ export class FlameDatabase {
       return {
         senderId: normalizedSender.id,
         recipientId: normalizedRecipient.id,
+        conversationId,
+        senderMessage,
+        recipientMessage,
         senderState: await this.publicState(savedSender, { includeFeed: false }),
         recipientState: await this.publicState(savedRecipient, { includeFeed: false })
       };
