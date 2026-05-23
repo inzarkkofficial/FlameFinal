@@ -80,6 +80,9 @@ const PUBLIC_USER_PROJECTION = {
   "state.blockedIds": 1,
   "state.stories": 1
 };
+const USER_WITHOUT_MATCH_PROFILE_PROJECTION = {
+  "state.matches.profile": 0
+};
 
 function passwordHash(password, salt = randomUUID()) {
   const hash = scryptSync(password, salt, 64).toString("hex");
@@ -116,17 +119,16 @@ function ageFromBirthDate(value, now = new Date()) {
   return age;
 }
 
-function upsertMatch(state, profileId, profile = null) {
+function upsertMatch(state, profileId) {
   state.matches = Array.isArray(state.matches) ? state.matches : [];
   const existing = state.matches.find((match) => match.profileId === profileId);
   if (existing) {
-    if (profile && !existing.profile) existing.profile = profile;
     existing.archivedAt = 0;
     existing.deletedAt = 0;
     return state;
   }
 
-  state.matches.unshift({ profileId, matchedAt: Date.now(), messages: [], pinnedMessageIds: [], ...(profile ? { profile } : {}) });
+  state.matches.unshift({ profileId, matchedAt: Date.now(), messages: [], pinnedMessageIds: [] });
   return state;
 }
 
@@ -663,6 +665,26 @@ function unsetPathValue(document, path) {
   delete target[parts[parts.length - 1]];
 }
 
+function deletePathValue(document, path) {
+  const parts = path.split(".");
+  const visit = (target, index) => {
+    if (!target || typeof target !== "object") return;
+    if (Array.isArray(target)) {
+      for (const item of target) visit(item, index);
+      return;
+    }
+
+    const part = parts[index];
+    if (index === parts.length - 1) {
+      delete target[part];
+      return;
+    }
+    visit(target[part], index + 1);
+  };
+
+  visit(document, 0);
+}
+
 function pushPathValue(document, path, value) {
   const current = getPathValue(document, path);
   if (!Array.isArray(current)) setPathValue(document, path, []);
@@ -677,6 +699,9 @@ function projectDocument(document, projection = null) {
     .map(([path]) => path);
   if (includePaths.length === 0) {
     const projected = clone(document);
+    for (const [path, enabled] of Object.entries(projection)) {
+      if (path !== "_id" && !enabled) deletePathValue(projected, path);
+    }
     if (projection._id === 0) delete projected._id;
     return projected;
   }
@@ -1206,7 +1231,7 @@ export class FlameDatabase {
   }
 
   async findUserById(id) {
-    const user = await this.users.findOne({ id });
+    const user = await this.users.findOne({ id }, { projection: USER_WITHOUT_MATCH_PROFILE_PROJECTION });
     return user ? normalizeUser(user) : null;
   }
 
@@ -1214,7 +1239,7 @@ export class FlameDatabase {
     const session = await this.sessions.findOne({ token });
     if (!session) return null;
 
-    const user = await this.users.findOne({ id: session.userId });
+    const user = await this.users.findOne({ id: session.userId }, { projection: USER_WITHOUT_MATCH_PROFILE_PROJECTION });
     if (!user) return null;
 
     await this.sessions.updateOne({ token }, { $set: { lastSeenAt: Date.now() } });
@@ -1754,12 +1779,10 @@ export class FlameDatabase {
       throw error;
     }
 
-    const recipientProfile = publicProfile(normalizedRecipient, new Set(), normalized.id);
-    const state = upsertMatch(clone(normalized.state), profileId, recipientProfile ? clone(recipientProfile) : null);
+    const state = upsertMatch(clone(normalized.state), profileId);
     const savedSender = await this.saveState(normalized, state);
 
-    const senderProfile = publicProfile(normalized, new Set(), normalizedRecipient.id);
-    const recipientState = upsertMatch(clone(normalizedRecipient.state), normalized.id, clone(senderProfile));
+    const recipientState = upsertMatch(clone(normalizedRecipient.state), normalized.id);
     const savedRecipient = await this.saveState(normalizedRecipient, recipientState);
 
     return {
@@ -1782,7 +1805,7 @@ export class FlameDatabase {
       return {
         senderId: normalized.id,
         recipientId: profileId,
-        senderState: await this.publicState(normalized),
+        senderState: await this.publicState(normalized, { includeFeed: false }),
         recipientState: null
       };
     }
@@ -1801,8 +1824,8 @@ export class FlameDatabase {
     return {
       senderId: savedSender.id,
       recipientId: savedRecipient?.id || null,
-      senderState: await this.publicState(savedSender),
-      recipientState: savedRecipient ? await this.publicState(savedRecipient) : null
+      senderState: await this.publicState(savedSender, { includeFeed: false }),
+      recipientState: savedRecipient ? await this.publicState(savedRecipient, { includeFeed: false }) : null
     };
   }
 
@@ -1843,18 +1866,16 @@ export class FlameDatabase {
 
     if (recipient) {
       const recipientMessage = { ...baseMessage, text: recipientText || text, from: "them" };
-      const recipientProfile = publicProfile(normalizedRecipient, new Set(), normalizedSender.id);
-      const senderProfile = publicProfile(normalizedSender, new Set(), normalizedRecipient.id);
       const [savedSender, savedRecipient] = await Promise.all([
-        this.appendMessagesToUser(normalizedSender, normalizedRecipient.id, [senderMessage], clone(recipientProfile)),
-        this.appendMessagesToUser(normalizedRecipient, normalizedSender.id, [recipientMessage], clone(senderProfile))
+        this.appendMessagesToUser(normalizedSender, normalizedRecipient.id, [senderMessage]),
+        this.appendMessagesToUser(normalizedRecipient, normalizedSender.id, [recipientMessage])
       ]);
 
       return {
         senderId: normalizedSender.id,
         recipientId: normalizedRecipient.id,
-        senderState: await this.publicState(savedSender),
-        recipientState: await this.publicState(savedRecipient)
+        senderState: await this.publicState(savedSender, { includeFeed: false }),
+        recipientState: await this.publicState(savedRecipient, { includeFeed: false })
       };
     }
 
@@ -1896,8 +1917,8 @@ export class FlameDatabase {
     return {
       senderId: savedSender.id,
       recipientId: savedRecipient?.id || null,
-      senderState: await this.publicState(savedSender),
-      recipientState: savedRecipient ? await this.publicState(savedRecipient) : null
+      senderState: await this.publicState(savedSender, { includeFeed: false }),
+      recipientState: savedRecipient ? await this.publicState(savedRecipient, { includeFeed: false }) : null
     };
   }
 
@@ -1948,7 +1969,7 @@ export class FlameDatabase {
         : match
     );
     const savedUser = await this.saveState(normalized, state);
-    return this.publicState(savedUser);
+    return this.publicState(savedUser, { includeFeed: false });
   }
 
   async togglePinnedMessage(user, { profileId, messageId, pinned }) {
@@ -1987,7 +2008,7 @@ export class FlameDatabase {
     );
 
     const savedUser = await this.saveState(normalized, state);
-    return this.publicState(savedUser);
+    return this.publicState(savedUser, { includeFeed: false });
   }
 
   async archiveConversation(user, { profileId, archived = true }) {
@@ -2007,7 +2028,7 @@ export class FlameDatabase {
     }
 
     const savedUser = await this.saveState(normalized, state);
-    return this.publicState(savedUser);
+    return this.publicState(savedUser, { includeFeed: false });
   }
 
   async deleteConversation(user, { profileId }) {
@@ -2027,7 +2048,7 @@ export class FlameDatabase {
     }
 
     const savedUser = await this.saveState(normalized, state);
-    return this.publicState(savedUser);
+    return this.publicState(savedUser, { includeFeed: false });
   }
 
   async createPost(user, { text, type = "text", media = "", name = "", mime = "", tags = [] }) {

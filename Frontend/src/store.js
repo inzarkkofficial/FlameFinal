@@ -3,6 +3,7 @@ import {
   api,
   connectRealtime,
   disconnectRealtime,
+  getToken,
   jsonBody,
   markRealtimeConversationRead,
   reactRealtimePost,
@@ -400,6 +401,7 @@ function offlineError(error) {
 export function useFlameStore() {
   const [state, setState] = useState(fallbackState);
   const [hydrated, setHydrated] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false);
   const [lastError, setLastError] = useState("");
   const [typingByProfile, setTypingByProfile] = useState({});
   const postReactionQueue = useRef(new Map());
@@ -453,27 +455,36 @@ export function useFlameStore() {
     [applyServerState]
   );
 
+  const fetchFeed = useCallback(async () => {
+    setFeedLoading(true);
+    try {
+      const result = await request("/feed", { method: "GET" });
+      if (result.feed) applyFeed(result.feed);
+      return result;
+    } finally {
+      setFeedLoading(false);
+    }
+  }, [applyFeed, request]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function hydrate() {
-      const result = await request("/session", { method: "GET" });
+      const sessionPromise = request("/session", { method: "GET" });
+      const feedPromise = getToken() ? fetchFeed() : Promise.resolve(null);
+      const result = await sessionPromise;
       if (!cancelled) {
         if (!result.ok) setState(fallbackState);
         setHydrated(true);
-        if (result.ok) {
-          request("/feed", { method: "GET" }).then((feedResult) => {
-            if (!cancelled && feedResult.feed) applyFeed(feedResult.feed);
-          });
-        }
       }
+      feedPromise.catch(() => {});
     }
 
     hydrate();
     return () => {
       cancelled = true;
     };
-  }, [applyFeed, request]);
+  }, [fetchFeed, request]);
 
   useEffect(() => {
     return () => {
@@ -523,9 +534,8 @@ export function useFlameStore() {
       if (!profileId) return;
       setTypingByProfile((current) => ({ ...current, [profileId]: Boolean(typing) }));
     };
-    const handleFeedUpdate = async () => {
-      const result = await request("/feed", { method: "GET" });
-      if (result.feed) applyFeed(result.feed);
+    const handleFeedUpdate = () => {
+      fetchFeed();
     };
     const handleConnect = () => setLastError("");
     const handleConnectError = (error) => {
@@ -551,7 +561,7 @@ export function useFlameStore() {
       socket.off("connect", handleConnect);
       socket.off("connect_error", handleConnectError);
     };
-  }, [applyFeed, applyServerState, request, state.auth.isAuthenticated]);
+  }, [applyServerState, fetchFeed, request, state.auth.isAuthenticated]);
 
   const login = useCallback(
     async ({ email, password }) => {
@@ -563,11 +573,8 @@ export function useFlameStore() {
         setToken(result.token);
         if (result.state) applyServerState(result.state);
         window.setTimeout(() => {
-          request("/session", { method: "GET" }).then(() => {
-            request("/feed", { method: "GET" }).then((feedResult) => {
-              if (feedResult.feed) applyFeed(feedResult.feed);
-            });
-          });
+          request("/session", { method: "GET" });
+          fetchFeed();
         }, 0);
         return { ok: true, ...result };
       } catch (error) {
@@ -576,7 +583,7 @@ export function useFlameStore() {
         return { ok: false, error: message };
       }
     },
-    [applyFeed, applyServerState, request]
+    [applyServerState, fetchFeed, request]
   );
 
   const signup = useCallback(
@@ -588,16 +595,13 @@ export function useFlameStore() {
       if (result.ok) {
         setToken(result.token);
         window.setTimeout(() => {
-          request("/session", { method: "GET" }).then(() => {
-            request("/feed", { method: "GET" }).then((feedResult) => {
-              if (feedResult.feed) applyFeed(feedResult.feed);
-            });
-          });
+          request("/session", { method: "GET" });
+          fetchFeed();
         }, 0);
       }
       return result;
     },
-    [applyFeed, request]
+    [fetchFeed, request]
   );
 
   const logout = useCallback(async () => {
@@ -1084,10 +1088,8 @@ export function useFlameStore() {
   );
 
   const refreshFeed = useCallback(async () => {
-    const result = await request("/feed", { method: "GET" });
-    if (result.feed) applyFeed(result.feed);
-    return result;
-  }, [applyFeed, request]);
+    return fetchFeed();
+  }, [fetchFeed]);
 
   const createStory = useCallback(
     async (content) => {
@@ -1173,6 +1175,7 @@ export function useFlameStore() {
   return {
     state,
     hydrated,
+    feedLoading,
     lastError,
     typingByProfile,
     login,

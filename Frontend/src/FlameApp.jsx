@@ -385,6 +385,7 @@ export default function FlameApp() {
   const {
     state,
     hydrated,
+    feedLoading,
     typingByProfile,
     login,
     signup,
@@ -685,6 +686,7 @@ export default function FlameApp() {
             {tab === "home" && (
               <HomeScreen
                 state={state}
+                feedLoading={feedLoading}
                 onMenu={() => setMenuOpen(true)}
                 onNotif={() => setNotifOpen(true)}
                 hasNotifications={hasUnreadActivity}
@@ -1508,6 +1510,7 @@ function parsePostTags(value) {
 
 function HomeScreen({
   state,
+  feedLoading = false,
   onMenu,
   onNotif,
   hasNotifications,
@@ -1959,7 +1962,7 @@ function HomeScreen({
       <div className="home-desktop-layout">
         <div className="home-feed-column">
           <div className="feed-list">
-        {!feedReady ? (
+        {!feedReady || (feedLoading && feed.length === 0) ? (
           Array.from({ length: 3 }).map((_, index) => (
             <div className="feed-slide" key={`feed-skeleton-${index}`}>
               <FeedSkeleton />
@@ -2787,7 +2790,6 @@ function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, 
 function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-  const rotate = useTransform(x, [-300, 300], [-22, 22]);
   const likeOp = useTransform(x, [40, 160], [0, 1]);
   const nopeOp = useTransform(x, [-160, -40], [1, 0]);
   const supOp = useTransform(y, [-160, -40], [1, 0]);
@@ -2812,7 +2814,7 @@ function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
   return (
     <motion.div
       className="deck-card"
-      style={isTop ? { x, y, rotate } : undefined}
+      style={isTop ? { x, y } : undefined}
       drag={isTop}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
       dragElastic={0.72}
@@ -2824,7 +2826,7 @@ function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
           ? {
               x: forced === "like" ? 600 : forced === "pass" ? -600 : 0,
               y: forced === "super" ? -800 : 0,
-              rotate: forced === "like" ? 22 : forced === "pass" ? -22 : 0,
+              rotate: 0,
               opacity: 0,
               transition: { duration: 0.32 }
             }
@@ -4329,7 +4331,7 @@ function CallPanel({
               <span>{connecting ? "Ringing..." : "Connected"}</span>
             </div>
           )}
-          {!videoMode && <audio ref={remoteAudioRef} autoPlay />}
+          <audio ref={remoteAudioRef} autoPlay playsInline />
           {videoMode && (
             <div className="call-local-preview">
               <video ref={localVideoRef} autoPlay playsInline muted />
@@ -4884,6 +4886,7 @@ function ChatScreen({
     event.preventDefault();
     const value = text.trim();
     if (!value) return;
+    if (typingTimer.current) window.clearTimeout(typingTimer.current);
     setTypingStatus(false);
     onSend({ type: "text", text: value });
     setText("");
@@ -5002,6 +5005,10 @@ function ChatScreen({
     }
 
     setTypingStatus(true);
+    typingTimer.current = window.setTimeout(() => {
+      typingTimer.current = null;
+      setTypingStatus(false);
+    }, 1200);
   };
 
   const useReply = (reply) => {
@@ -5350,6 +5357,7 @@ function ChatScreen({
           type="text"
           value={text}
           onChange={(event) => updateText(event.target.value)}
+          onBlur={() => setTypingStatus(false)}
           placeholder={`Message ${profile.name}...`}
           aria-label={`Message ${profile.name}`}
         />
