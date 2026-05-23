@@ -2227,3 +2227,169 @@
     right: 7px;
   }
 }
+
+/* Final auth layout contract: desktop two-panel, mobile single-panel, no overlap. */
+.flame-app.auth-mode,
+.flame-app.auth-mode * {
+  box-sizing: border-box;
+}
+
+.flame-app.auth-mode :where(img, svg, canvas) {
+  max-width: 100%;
+}
+
+.flame-app.auth-mode :where(.auth-title, .auth-subtitle, .auth-tab, .auth-primary-btn, .auth-social-btn, .auth-option, .auth-label, .auth-input, .auth-hero-headline, .auth-hero-subtitle) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1024px) {
+  .flame-app.auth-mode :is(.login-page, .signup-page) {
+    display: grid !important;
+    grid-template-columns: minmax(460px, 1fr) minmax(360px, 450px) !important;
+    align-items: center !important;
+    gap: clamp(28px, 5vw, 78px) !important;
+    min-height: 100dvh !important;
+    padding: clamp(22px, 4vh, 44px) clamp(30px, 5vw, 86px) !important;
+    overflow: hidden !important;
+  }
+
+  .flame-app.auth-mode .auth-desktop-hero {
+    display: grid !important;
+    align-content: center !important;
+    width: 100% !important;
+    max-width: 720px !important;
+    min-width: 0 !important;
+    min-height: min(720px, calc(100dvh - 88px)) !important;
+    padding: 0 !important;
+  }
+
+  .flame-app.auth-mode .auth-hero-content {
+    width: min(100%, 640px) !important;
+  }
+
+  .flame-app.auth-mode .auth-hero-headline {
+    max-width: 620px !important;
+    font-size: clamp(42px, 5vw, 76px) !important;
+    line-height: 0.92 !important;
+  }
+
+  .flame-app.auth-mode .auth-hero-subtitle {
+    max-width: 520px !important;
+  }
+
+  .flame-app.auth-mode .auth-hero-visual {
+    width: min(520px, 42vw) !important;
+    max-height: 34dvh !important;
+    margin: clamp(16px, 3vh, 34px) 0 !important;
+  }
+
+  .flame-app.auth-mode .auth-hero-features {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    width: min(100%, 620px) !important;
+  }
+
+  .flame-app.auth-mode .auth-feature-card {
+    min-width: 0 !important;
+    min-height: 92px !important;
+  }
+
+  .flame-app.auth-mode .auth-container {
+    align-self: center !important;
+    width: min(100%, 430px) !important;
+    max-width: 430px !important;
+    max-height: calc(100dvh - 32px) !important;
+    margin: 0 0 0 auto !important;
+    padding: clamp(16px, 2.4vh, 26px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-container {
+    width: min(100%, 460px) !important;
+    max-width: 460px !important;
+  }
+
+  .flame-app.auth-mode .auth-logo-section {
+    margin-bottom: clamp(12px, 2vh, 20px) !important;
+  }
+
+  .flame-app.auth-mode .auth-logo-wrapper {
+    width: clamp(58px, 8vh, 86px) !important;
+    height: clamp(58px, 8vh, 86px) !important;
+  }
+
+  .flame-app.auth-mode .auth-title {
+    font-size: clamp(28px, 4vh, 38px) !important;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-form {
+    gap: 10px !important;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-input-group,
+  .flame-app.auth-mode .signup-page .auth-birthday-group {
+    min-height: 44px !important;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-input,
+  .flame-app.auth-mode .signup-page .auth-birthday-select {
+    min-height: 44px !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .flame-app.auth-mode :is(.login-page, .signup-page) {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    min-height: 100dvh !important;
+    padding: 18px clamp(12px, 4vw, 22px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .flame-app.auth-mode .auth-desktop-ambient,
+  .flame-app.auth-mode .auth-desktop-hero,
+  .flame-app.auth-mode .auth-desktop-top-action {
+    display: none !important;
+  }
+
+  .flame-app.auth-mode .auth-container {
+    width: min(100%, 460px) !important;
+    max-width: 460px !important;
+    margin: 0 auto !important;
+    padding: clamp(16px, 4vw, 22px) !important;
+    overflow: visible !important;
+  }
+
+  .flame-app.auth-mode .auth-social,
+  .flame-app.auth-mode .auth-options {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .flame-app.auth-mode .auth-container {
+    width: 100% !important;
+    padding: 16px !important;
+  }
+
+  .flame-app.auth-mode .auth-tabs,
+  .flame-app.auth-mode .auth-social,
+  .flame-app.auth-mode .auth-options,
+  .flame-app.auth-mode .signup-page .auth-options {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-birthday-control {
+    grid-template-columns: minmax(0, 1fr) minmax(54px, 0.66fr) minmax(66px, 0.8fr) !important;
+  }
+}

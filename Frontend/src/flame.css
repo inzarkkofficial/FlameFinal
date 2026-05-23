@@ -15370,3 +15370,420 @@ body {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
+
+/* Responsive layout contract: separate desktop and phone layouts, with overlap guards. */
+.flame-app.app-mode,
+.flame-app.app-mode * {
+  box-sizing: border-box;
+}
+
+.flame-app.app-mode :where(img, video, canvas, svg) {
+  max-width: 100%;
+}
+
+.flame-app.app-mode :where(
+  .page-title,
+  .brand-text,
+  .nav-label,
+  .profile-hero-main h1,
+  .profile-hero-main p,
+  .profile-detail-list b,
+  .profile-detail-list small,
+  .feed-copy,
+  .feed-meta,
+  .comment-row p,
+  .chat-id b,
+  .chat-id span,
+  .r1 b,
+  .r1 span,
+  .r2 span,
+  .liked-meta,
+  .new-match-info,
+  .settings-row b,
+  .settings-row small
+) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.flame-app.app-mode :where(.icon-btn, .bottom-nav button, .feed-tool-btn, .profile-hero-actions button, .profile-panel-head button) {
+  flex-shrink: 0;
+}
+
+.flame-app.app-mode :where(.profile-avatar-frame, .chat-profile-btn > img, .story .ring, .profile-hero-main > img, .profile-photo-tile, .media-thumb) img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (min-width: 1024px) {
+  .flame-app.app-mode {
+    --desktop-rail-width: clamp(220px, 16vw, 272px);
+    --desktop-page-pad: clamp(18px, 2.4vw, 40px);
+    --desktop-topbar-height: 76px;
+    width: 100vw !important;
+    min-height: 100dvh !important;
+    padding-left: var(--desktop-rail-width) !important;
+    overflow-x: hidden !important;
+  }
+
+  .flame-app.app-mode .bottom-nav {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    display: grid !important;
+    align-content: start !important;
+    width: var(--desktop-rail-width) !important;
+    height: 100dvh !important;
+    max-height: none !important;
+    padding: 18px 16px 24px !important;
+    overflow-y: auto !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-rail-brand {
+    position: static !important;
+    display: flex !important;
+    width: 100% !important;
+    height: 64px !important;
+    margin-bottom: 42px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    display: grid !important;
+    grid-template-columns: 38px minmax(0, 1fr) !important;
+    justify-content: start !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 52px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    overflow: hidden !important;
+    text-align: left !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.app-mode .screen-transition-wrapper {
+    width: calc(100vw - var(--desktop-rail-width)) !important;
+    max-width: calc(100vw - var(--desktop-rail-width)) !important;
+    min-height: 100dvh !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .flame-app.app-mode .screen:not(.chat-screen),
+  .flame-app.home-active .home-screen {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 100dvh !important;
+    padding: 0 var(--desktop-page-pad) 56px !important;
+    overflow-x: hidden !important;
+  }
+
+  .flame-app.app-mode .screen > .topbar,
+  .flame-app.home-active .home-topbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 80 !important;
+    width: calc(100% + (var(--desktop-page-pad) * 2)) !important;
+    min-height: var(--desktop-topbar-height) !important;
+    margin: 0 calc(var(--desktop-page-pad) * -1) 22px !important;
+    padding: 0 var(--desktop-page-pad) !important;
+    border-radius: 0 !important;
+  }
+
+  .flame-app.home-active .home-desktop-layout {
+    display: grid !important;
+    grid-template-columns: minmax(420px, 720px) minmax(260px, 340px) !important;
+    gap: clamp(18px, 2.4vw, 32px) !important;
+    align-items: start !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: 1120px !important;
+    margin: 0 auto !important;
+  }
+
+  .flame-app.home-active .home-feed-column,
+  .flame-app.home-active .feed-list,
+  .flame-app.home-active .feed-search-panel,
+  .flame-app.home-active .feed-composer,
+  .flame-app.home-active .feed-post {
+    width: 100% !important;
+    max-width: 720px !important;
+    min-width: 0 !important;
+  }
+
+  .flame-app.home-active .home-desktop-aside {
+    display: grid !important;
+    width: 100% !important;
+    max-width: 340px !important;
+    min-width: 0 !important;
+  }
+
+  .flame-app.app-mode .discover-screen {
+    display: grid !important;
+    grid-template-rows: auto auto minmax(0, auto) auto auto !important;
+    justify-items: center !important;
+    align-content: start !important;
+  }
+
+  .flame-app.app-mode .discover-screen .discover-tools,
+  .flame-app.app-mode .discover-screen .card-wrap,
+  .flame-app.app-mode .discover-screen .deck-meta,
+  .flame-app.app-mode .discover-screen .actions {
+    width: min(100%, 640px) !important;
+  }
+
+  .flame-app.app-mode .discover-screen .card-wrap {
+    height: clamp(430px, calc(100dvh - 270px), 660px) !important;
+    min-height: 430px !important;
+    max-height: 660px !important;
+  }
+
+  .flame-app.app-mode .discover-screen .actions {
+    position: static !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-top: 12px !important;
+    transform: none !important;
+  }
+
+  .flame-app.app-mode .screen[aria-label="Messages"],
+  .flame-app.app-mode .screen[aria-label="Match history"] {
+    max-width: 980px !important;
+    margin: 0 auto !important;
+  }
+
+  .flame-app.app-mode .stories {
+    width: 100% !important;
+    overflow-x: auto !important;
+    padding-bottom: 4px !important;
+  }
+
+  .flame-app.app-mode .chat-list,
+  .flame-app.app-mode .liked-you-list {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .flame-app.app-mode .chat,
+  .flame-app.app-mode .liked-you {
+    display: grid !important;
+    grid-template-columns: 68px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    min-width: 0 !important;
+  }
+
+  .flame-app.app-mode .match-new-row {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  }
+
+  .flame-app.app-mode .profile-page-shell,
+  .flame-app.app-mode .settings-page-shell {
+    width: 100% !important;
+    max-width: 1280px !important;
+    margin: 0 auto !important;
+  }
+
+  .flame-app.app-mode .profile-content-grid {
+    display: grid !important;
+    grid-template-columns: minmax(250px, 0.85fr) minmax(340px, 1.35fr) minmax(270px, 0.9fr) !important;
+    gap: clamp(14px, 1.8vw, 24px) !important;
+    align-items: start !important;
+  }
+
+  .flame-app.app-mode .settings-dashboard-grid {
+    display: grid !important;
+    grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.1fr) minmax(280px, 0.9fr) !important;
+    gap: clamp(14px, 1.8vw, 24px) !important;
+    align-items: start !important;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1180px) {
+  .flame-app.app-mode {
+    --desktop-rail-width: 210px;
+    --desktop-page-pad: 18px;
+  }
+
+  .flame-app.app-mode .profile-content-grid,
+  .flame-app.app-mode .settings-dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app.app-mode .profile-photos-panel,
+  .flame-app.app-mode .profile-posts-panel,
+  .flame-app.app-mode .settings-user-panel {
+    grid-column: span 2 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .flame-app.app-mode {
+    --mobile-pad: clamp(12px, 4vw, 18px);
+    --mobile-nav-height: 74px;
+    width: 100vw !important;
+    min-height: 100dvh !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .flame-app.app-mode .screen-transition-wrapper {
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+  }
+
+  .flame-app.app-mode .screen:not(.chat-screen),
+  .flame-app.home-active .home-screen {
+    width: 100% !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    min-height: 100dvh !important;
+    margin: 0 !important;
+    padding: 16px var(--mobile-pad) calc(var(--mobile-nav-height) + 30px + env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden !important;
+  }
+
+  .flame-app.app-mode .screen > .topbar,
+  .flame-app.home-active .home-topbar {
+    display: grid !important;
+    grid-template-columns: 46px minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    min-width: 0 !important;
+  }
+
+  .flame-app.app-mode .page-title,
+  .flame-app.app-mode .brand {
+    justify-self: center !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.app-mode .bottom-nav {
+    position: fixed !important;
+    right: 8px !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    left: 8px !important;
+    z-index: 170 !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    width: auto !important;
+    height: var(--mobile-nav-height) !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .desktop-only,
+  .flame-app.app-mode .bottom-nav .nav-rail-brand {
+    display: none !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.home-active .home-desktop-layout,
+  .flame-app.home-active .home-feed-column,
+  .flame-app.home-active .feed-list,
+  .flame-app.home-active .feed-search-panel,
+  .flame-app.home-active .feed-composer,
+  .flame-app.home-active .feed-post,
+  .flame-app.app-mode .profile-page-shell,
+  .flame-app.app-mode .settings-page-shell,
+  .flame-app.app-mode .profile-content-grid,
+  .flame-app.app-mode .settings-dashboard-grid,
+  .flame-app.app-mode .chat-list,
+  .flame-app.app-mode .liked-you-list,
+  .flame-app.app-mode .match-top-row {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  .flame-app.app-mode .profile-content-grid,
+  .flame-app.app-mode .settings-dashboard-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .flame-app.app-mode .chat,
+  .flame-app.app-mode .liked-you,
+  .flame-app.app-mode .new-match-card {
+    display: grid !important;
+    grid-template-columns: 62px minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+  }
+
+  .flame-app.app-mode .r1,
+  .flame-app.app-mode .r2 {
+    min-width: 0 !important;
+  }
+
+  .flame-app.app-mode .r1 b,
+  .flame-app.app-mode .r2 span {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.app-mode .discover-screen .actions {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app.app-mode .discover-screen .action label {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.app-mode .profile-hero-main {
+    grid-template-columns: 88px minmax(0, 1fr) !important;
+  }
+
+  .flame-app.app-mode .profile-hero-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app.app-mode .profile-hero-actions button span,
+  .flame-app.app-mode .profile-panel-head button {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .flame-app.app-mode .profile-hero-main,
+  .flame-app.app-mode .chat,
+  .flame-app.app-mode .liked-you,
+  .flame-app.app-mode .new-match-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .flame-app.app-mode .chat .profile-avatar-frame,
+  .flame-app.app-mode .liked-you .profile-avatar-frame {
+    justify-self: center !important;
+  }
+
+  .flame-app.app-mode .profile-hero-actions,
+  .flame-app.app-mode .profile-stat-grid,
+  .flame-app.app-mode .background-preset-grid,
+  .flame-app.home-active .feed-tools {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
