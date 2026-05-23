@@ -1435,6 +1435,7 @@ function startKeepAlive() {
   const ping = () => {
     fetch(healthUrl, { method: "GET" }).catch(() => {});
   };
+  ping();
   const timer = setInterval(ping, KEEP_ALIVE_INTERVAL_MS);
   timer.unref?.();
 }

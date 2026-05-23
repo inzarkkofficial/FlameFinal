@@ -3,19 +3,41 @@ import { io } from "socket.io-client";
 const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || undefined;
 const TOKEN_KEY = "flame-api-token";
+const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
 let realtimeSocket;
 
+function readStorage(storage) {
+  try {
+    return storage?.getItem(TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStorage(storage, token) {
+  try {
+    if (token) storage?.setItem(TOKEN_KEY, token);
+    else storage?.removeItem(TOKEN_KEY);
+  } catch {
+    // Storage can be blocked in private mode. Auth still works for the current page.
+  }
+}
+
 export function getToken() {
-  return sessionStorage.getItem(TOKEN_KEY);
+  const token = readStorage(globalThis.localStorage) || readStorage(globalThis.sessionStorage);
+  if (token && !readStorage(globalThis.localStorage)) writeStorage(globalThis.localStorage, token);
+  return token;
 }
 
 export function setToken(token) {
   if (token) {
-    sessionStorage.setItem(TOKEN_KEY, token);
+    writeStorage(globalThis.localStorage, token);
+    writeStorage(globalThis.sessionStorage, token);
     return;
   }
 
-  sessionStorage.removeItem(TOKEN_KEY);
+  writeStorage(globalThis.localStorage, "");
+  writeStorage(globalThis.sessionStorage, "");
 }
 
 export function getRealtimeSocket() {
@@ -121,6 +143,22 @@ export function markRealtimeConversationRead(payload) {
   });
 }
 
+function wait(ms) {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+}
+
+async function wakeBackend() {
+  try {
+    await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+  } catch {
+    // The retry loop below handles cold starts and temporary network misses.
+  }
+}
+
+function isRetryableStatus(status) {
+  return [502, 503, 504].includes(status);
+}
+
 export async function api(path, options = {}) {
   const token = getToken();
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -133,33 +171,47 @@ export async function api(path, options = {}) {
       ...(options.headers || {})
     }
   };
-  let response;
-  try {
-    response = await fetch(url, requestOptions);
-  } catch (error) {
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+    let response;
     try {
-      await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
       response = await fetch(url, requestOptions);
-    } catch {
-      throw new Error("The Flame backend is waking up. Please try again in a few seconds.");
+    } catch (error) {
+      lastError = error;
+      if (attempt >= RETRY_DELAYS_MS.length) break;
+      await wakeBackend();
+      await wait(RETRY_DELAYS_MS[attempt]);
+      continue;
     }
+
+    const contentType = response.headers.get("content-type") || "";
+    const payload = contentType.includes("application/json")
+      ? await response.json().catch(() => ({}))
+      : {};
+
+    if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < RETRY_DELAYS_MS.length) {
+      await wakeBackend();
+      await wait(RETRY_DELAYS_MS[attempt]);
+      continue;
+    }
+
+    if (!response.ok || payload.ok === false) {
+      const fallback =
+        response.status >= 500
+          ? "The Flame backend is still waking up. Please try again in a moment."
+          : "Request failed.";
+      const error = new Error(payload.error || fallback);
+      error.status = response.status;
+      throw error;
+    }
+
+    return payload;
   }
 
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json")
-    ? await response.json().catch(() => ({}))
-    : {};
-  if (!response.ok || payload.ok === false) {
-    const fallback =
-      response.status >= 500
-        ? "Cannot reach the Flame backend. Make sure the API server is running."
-        : "Request failed.";
-    const error = new Error(payload.error || fallback);
-    error.status = response.status;
-    throw error;
-  }
-
-  return payload;
+  const error = new Error("The Flame backend is still waking up. Please try again in a moment.");
+  error.cause = lastError;
+  throw error;
 }
 
 export function jsonBody(body) {

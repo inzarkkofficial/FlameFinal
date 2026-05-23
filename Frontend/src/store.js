@@ -395,11 +395,20 @@ function mergeState(next, current = fallbackState) {
 function offlineError(error) {
   return error?.status === 401
     ? "Please log in again."
-    : "Cannot reach the Flame backend. Make sure the API server is running.";
+    : "The Flame backend is still waking up. Please try again in a moment.";
+}
+
+function initialState() {
+  return getToken()
+    ? {
+        ...fallbackState,
+        auth: { ...fallbackState.auth, isAuthenticated: true }
+      }
+    : fallbackState;
 }
 
 export function useFlameStore() {
-  const [state, setState] = useState(fallbackState);
+  const [state, setState] = useState(initialState);
   const [hydrated, setHydrated] = useState(false);
   const [feedLoading, setFeedLoading] = useState(false);
   const [lastError, setLastError] = useState("");
@@ -449,7 +458,7 @@ export function useFlameStore() {
             auth: { ...current.auth, isAuthenticated: false }
           }));
         }
-        return { ok: false, error: message };
+        return { ok: false, error: message, status: error.status || 0 };
       }
     },
     [applyServerState]
@@ -474,7 +483,7 @@ export function useFlameStore() {
       const feedPromise = getToken() ? fetchFeed() : Promise.resolve(null);
       const result = await sessionPromise;
       if (!cancelled) {
-        if (!result.ok) setState(fallbackState);
+        if (!result.ok && (!getToken() || result.status === 401)) setState(fallbackState);
         setHydrated(true);
       }
       feedPromise.catch(() => {});
