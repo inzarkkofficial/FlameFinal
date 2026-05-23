@@ -1545,6 +1545,7 @@ function HomeScreen({
   const [dragActive, setDragActive] = useState(false);
   const [reactionBurst, setReactionBurst] = useState("");
   const [feedReady, setFeedReady] = useState(false);
+  const [feedWaitExpired, setFeedWaitExpired] = useState(false);
   const [postMenuOpen, setPostMenuOpen] = useState("");
   const [editingPostId, setEditingPostId] = useState("");
   const [editPostText, setEditPostText] = useState("");
@@ -1571,6 +1572,17 @@ function HomeScreen({
     const id = window.setTimeout(() => setFeedReady(true), 320);
     return () => window.clearTimeout(id);
   }, []);
+
+  useEffect(() => {
+    if (!feedLoading || feed.length > 0) {
+      setFeedWaitExpired(false);
+      return undefined;
+    }
+
+    setFeedWaitExpired(false);
+    const id = window.setTimeout(() => setFeedWaitExpired(true), 1600);
+    return () => window.clearTimeout(id);
+  }, [feed.length, feedLoading]);
 
   const openUserProfile = (summary) => {
     const profile = profileForSummary(summary, state);
@@ -1962,7 +1974,7 @@ function HomeScreen({
       <div className="home-desktop-layout">
         <div className="home-feed-column">
           <div className="feed-list">
-        {!feedReady || (feedLoading && feed.length === 0) ? (
+        {!feedReady || (feedLoading && feed.length === 0 && !feedWaitExpired) ? (
           Array.from({ length: 3 }).map((_, index) => (
             <div className="feed-slide" key={`feed-skeleton-${index}`}>
               <FeedSkeleton />
@@ -1971,8 +1983,8 @@ function HomeScreen({
         ) : visibleFeed.length === 0 ? (
           <div className="feed-slide feed-empty-slide">
             <EmptyState
-              title={searchQuery ? "No posts found" : "No posts yet"}
-              subtitle={searchQuery ? "Try another search or browse the full feed." : "Post a message, photo, or video to start the home feed."}
+              title={feedLoading ? "Loading latest posts" : searchQuery ? "No posts found" : "No posts yet"}
+              subtitle={feedLoading ? "Your feed will appear here shortly." : searchQuery ? "Try another search or browse the full feed." : "Post a message, photo, or video to start the home feed."}
             />
             <button type="button" className="cta compact empty-post-btn" onClick={() => setComposerOpen(true)}>
               Create post
@@ -2650,12 +2662,16 @@ function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, 
 
   const trigger = (dir) => {
     if (forced) return;
-    setForced(dir);
-    window.setTimeout(() => setForced(null), 360);
+    const current = deck[index % Math.max(deck.length, 1)];
+    if (!current) return;
+    setForced({ dir, profileId: current.id });
     if (dir === "like" || dir === "super") {
       onPop(window.innerWidth / 2, window.innerHeight / 2);
     }
-    window.setTimeout(() => advance(dir), 280);
+    window.setTimeout(() => {
+      setForced(null);
+      advance(dir);
+    }, 300);
   };
 
   useEffect(() => {
@@ -2722,7 +2738,7 @@ function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, 
                   profile={profile}
                   isTop={isTop}
                   offset={offset}
-                  forced={isTop ? forced : null}
+                  forced={isTop && forced?.profileId === profile.id ? forced.dir : null}
                   onViewProfile={() => setViewingProfile(normalizeViewerProfile(profile))}
                   onSwipe={(dir) => {
                     if (dir === "like" || dir === "super") {
@@ -2790,6 +2806,7 @@ function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, 
 function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
+  const rotate = useTransform(x, [-240, 240], [-7, 7]);
   const likeOp = useTransform(x, [40, 160], [0, 1]);
   const nopeOp = useTransform(x, [-160, -40], [1, 0]);
   const supOp = useTransform(y, [-160, -40], [1, 0]);
@@ -2814,7 +2831,7 @@ function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
   return (
     <motion.div
       className="deck-card"
-      style={isTop ? { x, y } : undefined}
+      style={isTop ? { x, y, rotate } : undefined}
       drag={isTop}
       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
       dragElastic={0.72}
@@ -2826,15 +2843,16 @@ function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
           ? {
               x: forced === "like" ? 600 : forced === "pass" ? -600 : 0,
               y: forced === "super" ? -800 : 0,
-              rotate: 0,
+              rotate: forced === "like" ? 5 : forced === "pass" ? -5 : 0,
               opacity: 0,
               transition: { duration: 0.32 }
             }
-          : { scale: baseScale, y: baseY, opacity: 1 }
+          : { x: 0, y: baseY, rotate: 0, scale: baseScale, opacity: 1 }
       }
       exit={{
         x: exitX > 50 ? 600 : exitX < -50 ? -600 : 0,
         y: exitY < -100 ? -800 : 0,
+        rotate: 0,
         opacity: 0,
         transition: { duration: 0.32 }
       }}

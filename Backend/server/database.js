@@ -1178,7 +1178,7 @@ export class FlameDatabase {
       .find({})
       .project({ _id: 0 })
       .sort({ createdAt: -1 })
-      .limit(25)
+      .limit(12)
       .toArray();
     const authorIds = new Set();
 
