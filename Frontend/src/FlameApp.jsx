@@ -646,9 +646,11 @@ export default function FlameApp() {
       <AppSurface light={light} mode="onboarding-mode">
         <FirstTimeOnboarding
           user={state.user}
-          onComplete={async (data) => {
-            const result = await setUserProfile({ ...data, onboardingCompleted: true }, { optimistic: false });
-            showToast(result.ok ? "You're all set" : result.error);
+          onComplete={(data) => {
+            setUserProfile({ ...data, onboardingCompleted: true }).then((result) => {
+              if (!result.ok) showToast(result.error);
+            });
+            showToast("You're all set");
           }}
         />
         <div className="sr-live" role="status" aria-live="polite" aria-atomic="true">
@@ -1205,14 +1207,13 @@ function FirstTimeOnboarding({ user, onComplete }) {
     );
   };
 
-  const finish = async () => {
+  const finish = () => {
     if (saving) return;
     setSaving(true);
-    await onComplete({
+    onComplete({
       interests,
       zodiacSign
     });
-    setSaving(false);
   };
 
   return (
