@@ -124,18 +124,25 @@ export function markRealtimeConversationRead(payload) {
 export async function api(path, options = {}) {
   const token = getToken();
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${API_URL}${normalizedPath}`;
+  const requestOptions = {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {})
+    }
+  };
   let response;
   try {
-    response = await fetch(`${API_URL}${normalizedPath}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {})
-      }
-    });
+    response = await fetch(url, requestOptions);
   } catch (error) {
-    throw new Error("Cannot reach the Flame backend. Make sure the API server is running.");
+    try {
+      await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
+      response = await fetch(url, requestOptions);
+    } catch {
+      throw new Error("The Flame backend is waking up. Please try again in a few seconds.");
+    }
   }
 
   const contentType = response.headers.get("content-type") || "";

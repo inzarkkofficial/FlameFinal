@@ -49,6 +49,8 @@ const YOUTUBE_SEARCH_ENDPOINT = process.env.YOUTUBE_SEARCH_ENDPOINT || "https://
 const LIVEKIT_URL = process.env.LIVEKIT_URL || "";
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || "";
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || "";
+const KEEP_ALIVE_URL = (process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/+$/, "");
+const KEEP_ALIVE_INTERVAL_MS = Math.max(60_000, Number(process.env.KEEP_ALIVE_INTERVAL_MS) || 8 * 60 * 1000);
 const locationSearchCache = new Map();
 const POST_ROUTE_ALIASES = new Map([
   ["/posts", "/api/posts"],
@@ -1427,6 +1429,16 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function startKeepAlive() {
+  if (!KEEP_ALIVE_URL || !KEEP_ALIVE_URL.startsWith("https://")) return;
+  const healthUrl = `${KEEP_ALIVE_URL}/api/health`;
+  const ping = () => {
+    fetch(healthUrl, { method: "GET" }).catch(() => {});
+  };
+  const timer = setInterval(ping, KEEP_ALIVE_INTERVAL_MS);
+  timer.unref?.();
+}
+
 async function connectDatabaseWithRetry() {
   let attempt = 0;
   while (!dbReady) {
@@ -1466,5 +1478,6 @@ if (isDirectRun) {
   server.listen(PORT, () => {
     console.log(`Flame website, API, and realtime messaging running on http://localhost:${PORT}`);
   });
+  startKeepAlive();
   connectDatabaseWithRetry();
 }
