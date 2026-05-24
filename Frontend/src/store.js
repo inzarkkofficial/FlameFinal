@@ -807,7 +807,8 @@ export function useFlameStore() {
       try {
         const result = await api("/auth/login", {
           method: "POST",
-          body: jsonBody({ email, password })
+          body: jsonBody({ email, password }),
+          retryDelays: QUICK_RETRY_DELAYS_MS
         });
         setToken(result.token);
         if (result.state) applyServerState(result.state);
@@ -832,7 +833,8 @@ export function useFlameStore() {
     async (payload) => {
       const result = await request("/auth/signup", {
         method: "POST",
-        body: jsonBody(payload)
+        body: jsonBody(payload),
+        retryDelays: QUICK_RETRY_DELAYS_MS
       });
       if (result.ok) {
         setToken(result.token);

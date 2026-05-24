@@ -1198,9 +1198,9 @@ export class FlameDatabase {
     console.warn(`Using local Flame datastore at ${this.localDbPath}. Reason: ${reason}`);
   }
 
-  async publicState(user, { includeFeed = true } = {}) {
+  async publicState(user, { includeFeed = true, includeProfiles = true } = {}) {
     const normalized = normalizeUser(user);
-    const profiles = await this.discoverProfiles(normalized);
+    const profiles = includeProfiles ? await this.discoverProfiles(normalized) : [];
     const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
     const blockedIds = new Set(normalized.state.blockedIds || []);
     const visibleMatches = normalized.state.matches.filter((match) => !match.blockedAt && !blockedIds.has(match.profileId));
@@ -1608,7 +1608,7 @@ export class FlameDatabase {
     const sessionUser = fullUser || { ...user, lastLoginAt, lastActiveAt: lastLoginAt };
     return {
       token,
-      state: await this.publicState(sessionUser, { includeFeed: false }),
+      state: await this.publicState(sessionUser, { includeFeed: false, includeProfiles: false }),
       hydrate: true
     };
   }
@@ -1652,7 +1652,7 @@ export class FlameDatabase {
 
     await this.users.insertOne(user);
     const token = await this.createSession(user);
-    return { token, state: await this.publicState(user, { includeFeed: false }), hydrate: true };
+    return { token, state: await this.publicState(user, { includeFeed: false, includeProfiles: false }), hydrate: true };
   }
 
   async saveState(user, nextState) {
