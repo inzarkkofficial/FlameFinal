@@ -5497,6 +5497,11 @@ function roomEmojiSymbol(id) {
   return ROOM_EMOJIS.find((emoji) => emoji.id === id)?.symbol || ROOM_EMOJIS[0].symbol;
 }
 
+function shortRoomId(id = "") {
+  const compact = String(id).replace(/[^a-zA-Z0-9]/g, "").slice(0, 6);
+  return compact || "room";
+}
+
 function GroupRoomsScreen({
   rooms = [],
   user,
@@ -5511,12 +5516,16 @@ function GroupRoomsScreen({
   onDeleteRoom
 }) {
   const [activeRoomId, setActiveRoomId] = useState("");
-  const [form, setForm] = useState({ name: "", description: "", maxMembers: 6 });
+  const [mode, setMode] = useState("list");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", maxMembers: 12 });
   const [creating, setCreating] = useState(false);
   const [busyAction, setBusyAction] = useState("");
+  const [roomError, setRoomError] = useState("");
   const [now, setNow] = useState(Date.now());
-  const activeRoom = rooms.find((room) => room.id === activeRoomId) || rooms.find((room) => room.joined) || rooms[0] || null;
+  const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const viewerSeat = activeRoom?.seats?.find((seat) => seat.user?.id === viewerId) || null;
+  const featuredRoom = activeRoom || rooms.find((room) => room.joined) || rooms[0] || null;
 
   useEffect(() => {
     onRefresh?.();
@@ -5525,7 +5534,9 @@ function GroupRoomsScreen({
   }, [onRefresh]);
 
   useEffect(() => {
-    if (activeRoomId && !rooms.some((room) => room.id === activeRoomId)) setActiveRoomId("");
+    if (!activeRoomId || rooms.some((room) => room.id === activeRoomId)) return;
+    setActiveRoomId("");
+    setMode("list");
   }, [activeRoomId, rooms]);
 
   const updateForm = (key, value) => {
@@ -5543,222 +5554,314 @@ function GroupRoomsScreen({
     });
     setCreating(false);
     if (result?.ok) {
-      setForm({ name: "", description: "", maxMembers: 6 });
-      if (result.room?.id) setActiveRoomId(result.room.id);
+      setRoomError("");
+      setForm({ name: "", description: "", maxMembers: 12 });
+      setCreateOpen(false);
+      if (result.room?.id) {
+        setActiveRoomId(result.room.id);
+        setMode("room");
+      }
+    } else {
+      setRoomError(result?.error || "Could not create room.");
     }
   };
 
   const runRoomAction = async (key, action) => {
+    setRoomError("");
     setBusyAction(key);
-    const result = await action();
-    setBusyAction("");
-    return result;
+    try {
+      const result = await action();
+      if (result?.ok === false) setRoomError(result.error || "Room action failed.");
+      return result;
+    } finally {
+      setBusyAction("");
+    }
   };
 
   const joinRoom = (room) =>
     runRoomAction(`join-${room.id}`, async () => {
       const result = await onJoinRoom?.(room.id);
-      if (result?.ok) setActiveRoomId(result.room?.id || room.id);
+      if (result?.ok) {
+        setActiveRoomId(result.room?.id || room.id);
+        setMode("room");
+      }
       return result;
     });
 
   const leaveRoom = (room) =>
     runRoomAction(`leave-${room.id}`, async () => {
       const result = await onLeaveRoom?.(room.id);
-      if (result?.ok && activeRoomId === room.id) setActiveRoomId("");
+      if (result?.ok && activeRoomId === room.id) {
+        setActiveRoomId("");
+        setMode("list");
+      }
       return result;
     });
 
+  const chooseSeat = (seatIndex) =>
+    runRoomAction(`seat-${seatIndex}`, async () => {
+      const result = await onChooseSeat?.(activeRoom.id, seatIndex);
+      if (result?.ok) setMode("room");
+      return result;
+    });
+
+  const copyRoomId = () => {
+    if (!activeRoom?.id) return;
+    navigator.clipboard?.writeText(activeRoom.id).catch(() => {});
+  };
+
   return (
     <section className="screen group-rooms-screen" aria-label="Group Rooms">
-      <header className="rooms-header">
-        <div>
-          <span className="rooms-kicker">Live hangouts</span>
-          <h1>Group Rooms</h1>
-          <p>Create a room, pick a seat, react, and hang out with Flame people.</p>
-        </div>
-        <button type="button" className="rooms-refresh-btn" onClick={onRefresh}>
-          Refresh
-        </button>
-      </header>
-
-      <div className="rooms-layout">
-        <aside className="rooms-sidebar">
-          <form className="room-create-form" onSubmit={submitRoom}>
-            <div className="form-title">
-              <RoomsIcon />
-              <span>Create Room</span>
-            </div>
-            <label>
-              <span>Room Name</span>
-              <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} maxLength={80} required />
-            </label>
-            <label>
-              <span>Room Description</span>
-              <textarea value={form.description} onChange={(event) => updateForm("description", event.target.value)} maxLength={500} required />
-            </label>
-            <label>
-              <span>Maximum Members</span>
-              <input
-                type="number"
-                min="2"
-                max="24"
-                value={form.maxMembers}
-                onChange={(event) => updateForm("maxMembers", Math.max(2, Math.min(24, Number(event.target.value) || 2)))}
-              />
-            </label>
-            <button type="submit" className="cta room-create-btn" disabled={creating || !form.name.trim() || !form.description.trim()}>
-              {creating ? "Creating..." : "Create room"}
+      {mode === "room" && activeRoom ? (
+        <main className="room-stage room-stage-full">
+          <div className="room-stage-head">
+            <button type="button" className="room-back-btn" onClick={() => setMode("list")} aria-label="Back to rooms">
+              <BackIcon />
             </button>
-          </form>
-
-          <div className="rooms-list">
-            <div className="rooms-list-head">
-              <span>Available rooms</span>
-              <b>{rooms.length}</b>
+            <div>
+              <span>Room ID: {shortRoomId(activeRoom.id)}</span>
+              <h2>{activeRoom.name}</h2>
+              <p>{activeRoom.currentMembers}/{activeRoom.maxMembers} people inside</p>
             </div>
-            {rooms.length === 0 ? (
-              <div className="rooms-empty">No rooms yet.</div>
-            ) : (
-              rooms.map((room) => (
+            <div className="room-stage-actions">
+              <button type="button" className="ghost" onClick={copyRoomId}>
+                Copy ID
+              </button>
+              {activeRoom.canDelete && (
                 <button
-                  key={room.id}
                   type="button"
-                  className={`room-list-card ${activeRoom?.id === room.id ? "active" : ""}`}
-                  onClick={() => setActiveRoomId(room.id)}
+                  className="danger"
+                  onClick={async () => {
+                    if (!window.confirm(`Close ${activeRoom.name}?`)) return;
+                    const result = await onDeleteRoom?.(activeRoom.id);
+                    if (result?.ok) {
+                      setActiveRoomId("");
+                      setMode("list");
+                    }
+                  }}
                 >
-                  <span>
-                    <b>{room.name}</b>
-                    <small>{room.description}</small>
-                  </span>
-                  <i>{room.currentMembers}/{room.maxMembers}</i>
+                  Close
                 </button>
-              ))
-            )}
+              )}
+            </div>
           </div>
-        </aside>
 
-        <main className="room-stage">
-          {activeRoom ? (
-            <>
-              <div className="room-stage-head">
-                <div>
-                  <span>{activeRoom.currentMembers}/{activeRoom.maxMembers} members</span>
-                  <h2>{activeRoom.name}</h2>
-                  <p>{activeRoom.description}</p>
-                </div>
-                <div className="room-stage-actions">
-                  {activeRoom.joined ? (
-                    <button type="button" onClick={() => leaveRoom(activeRoom)} disabled={busyAction === `leave-${activeRoom.id}`}>
-                      Leave
+          {roomError && <div className="room-error">{roomError}</div>}
+
+          <div className="seating-layout seating-layout-stage" style={{ "--seat-count": activeRoom.maxMembers }}>
+            {activeRoom.seats.map((seat) => {
+              const mine = seat.user?.id === viewerId;
+              const recentReactions = activeRoom.reactions
+                .filter((reaction) => reaction.seatIndex === seat.seatIndex && now - reaction.createdAt < 4500)
+                .slice(-3);
+              return (
+                <div key={seat.seatIndex} className={`room-seat ${seat.available ? "available" : "occupied"} ${mine ? "mine" : ""}`}>
+                  <AnimatePresence>
+                    {recentReactions.map((reaction) => (
+                      <motion.span
+                        key={reaction.id}
+                        className="room-reaction-float"
+                        initial={{ opacity: 0, y: 18, scale: 0.8 }}
+                        animate={{ opacity: 1, y: -30, scale: 1.12 }}
+                        exit={{ opacity: 0, y: -52, scale: 0.8 }}
+                        transition={{ duration: 0.45 }}
+                      >
+                        {roomEmojiSymbol(reaction.emoji)}
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+                  {seat.available ? (
+                    <button
+                      type="button"
+                      className="available-seat-btn"
+                      onClick={() => chooseSeat(seat.seatIndex)}
+                      disabled={busyAction === `seat-${seat.seatIndex}` || (activeRoom.isFull && !activeRoom.joined)}
+                    >
+                      <PlusIcon />
+                      <span>Empty Seat</span>
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => joinRoom(activeRoom)}
-                      disabled={activeRoom.isFull || busyAction === `join-${activeRoom.id}`}
-                    >
-                      {activeRoom.isFull ? "Full" : "Join"}
-                    </button>
+                    <>
+                      <img src={seat.user?.image || LOGO_SRC} alt="" />
+                      <strong>{seat.user?.name || "Flame user"}</strong>
+                      <span className={`seat-mic-status ${seat.micOn ? "on" : ""}`}>
+                        {seat.micOn ? "Mic on" : "Mic off"}
+                      </span>
+                      <button
+                        type="button"
+                        className={`seat-mic-btn ${seat.micOn ? "on" : ""}`}
+                        onClick={() => mine && onMic?.(activeRoom.id, !seat.micOn)}
+                        disabled={!mine}
+                        aria-label={mine ? "Toggle microphone" : `${seat.user?.name || "User"} microphone status`}
+                      >
+                        <MicIcon />
+                      </button>
+                    </>
                   )}
-                  {activeRoom.canDelete && (
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="room-social-bar room-callbar">
+            <button type="button" className="room-leave-control" onClick={() => leaveRoom(activeRoom)} disabled={busyAction === `leave-${activeRoom.id}`}>
+              <LogoutIcon />
+              <span>Leave</span>
+            </button>
+            <button
+              type="button"
+              className={`room-mic-control ${viewerSeat?.micOn ? "on" : ""}`}
+              onClick={() => viewerSeat && onMic?.(activeRoom.id, !viewerSeat.micOn)}
+              disabled={!viewerSeat}
+            >
+              <MicIcon />
+              <span>Mic</span>
+            </button>
+            <button type="button" disabled={!viewerSeat}>
+              <span aria-hidden="true">+</span>
+              <span>Seat</span>
+            </button>
+            <div className="room-emoji-bar">
+              {ROOM_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji.id}
+                  type="button"
+                  onClick={() => onReaction?.(activeRoom.id, emoji.id)}
+                  disabled={!viewerSeat}
+                  aria-label={emoji.label}
+                >
+                  {emoji.symbol}
+                </button>
+              ))}
+            </div>
+          </div>
+        </main>
+      ) : (
+        <>
+          <header className="rooms-landing-hero">
+            <div>
+              <span className="rooms-kicker">Audio hangouts</span>
+              <h1>Audio Group Rooms</h1>
+              <p>Talk. Connect. Make new friends on Flame.</p>
+              <button type="button" className="room-create-hero-btn" onClick={() => setCreateOpen(true)}>
+                <PlusIcon />
+                <span>Create Room</span>
+              </button>
+            </div>
+            <div className="room-hero-art" aria-hidden="true">
+              <span className="hero-mic"><MicIcon /></span>
+              <img src={user?.image || LOGO_SRC} alt="" />
+              <i />
+              <b />
+            </div>
+          </header>
+
+          <section className="rooms-list-page" aria-label="Available rooms">
+            <div className="rooms-list-head">
+              <span>Room List</span>
+              <button type="button" onClick={onRefresh}>Refresh</button>
+            </div>
+            {roomError && <div className="room-error">{roomError}</div>}
+            {rooms.length === 0 ? (
+              <div className="rooms-empty">No rooms yet. Create the first hangout.</div>
+            ) : (
+              <div className="rooms-card-list">
+                {rooms.map((room) => (
+                  <article key={room.id} className="room-list-card">
                     <button
                       type="button"
-                      className="danger"
+                      className="room-list-main"
                       onClick={() => {
-                        if (window.confirm(`Close ${activeRoom.name}?`)) onDeleteRoom?.(activeRoom.id);
+                        setActiveRoomId(room.id);
+                        if (room.joined) setMode("room");
                       }}
                     >
-                      Close
+                      <span className="room-thumbnail">
+                        <img src={room.creator?.image || LOGO_SRC} alt="" />
+                      </span>
+                      <span>
+                        <b>{room.name}</b>
+                        <small>{room.description}</small>
+                        <em>{room.currentMembers}/{room.maxMembers} members</em>
+                      </span>
                     </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="seating-layout" style={{ "--seat-count": activeRoom.maxMembers }}>
-                {activeRoom.seats.map((seat) => {
-                  const mine = seat.user?.id === viewerId;
-                  const recentReactions = activeRoom.reactions
-                    .filter((reaction) => reaction.seatIndex === seat.seatIndex && now - reaction.createdAt < 4500)
-                    .slice(-3);
-                  return (
-                    <div key={seat.seatIndex} className={`room-seat ${seat.available ? "available" : "occupied"} ${mine ? "mine" : ""}`}>
-                      <AnimatePresence>
-                        {recentReactions.map((reaction) => (
-                          <motion.span
-                            key={reaction.id}
-                            className="room-reaction-float"
-                            initial={{ opacity: 0, y: 18, scale: 0.8 }}
-                            animate={{ opacity: 1, y: -30, scale: 1.12 }}
-                            exit={{ opacity: 0, y: -52, scale: 0.8 }}
-                            transition={{ duration: 0.45 }}
-                          >
-                            {roomEmojiSymbol(reaction.emoji)}
-                          </motion.span>
-                        ))}
-                      </AnimatePresence>
-                      {seat.available ? (
-                        <button
-                          type="button"
-                          className="available-seat-btn"
-                          onClick={() => runRoomAction(`seat-${seat.seatIndex}`, () => onChooseSeat?.(activeRoom.id, seat.seatIndex))}
-                          disabled={busyAction === `seat-${seat.seatIndex}` || (activeRoom.isFull && !activeRoom.joined)}
-                        >
-                          <span>Available Seat</span>
-                          <small>Tap to sit</small>
-                        </button>
-                      ) : (
-                        <>
-                          <img src={seat.user?.image || LOGO_SRC} alt="" />
-                          <strong>{seat.user?.name || "Flame user"}</strong>
-                          <span className={`seat-mic-status ${seat.micOn ? "on" : ""}`}>
-                            {seat.micOn ? "Mic on" : "Mic off"}
-                          </span>
-                          <button
-                            type="button"
-                            className={`seat-mic-btn ${seat.micOn ? "on" : ""}`}
-                            onClick={() => mine && onMic?.(activeRoom.id, !seat.micOn)}
-                            disabled={!mine}
-                            aria-label={mine ? "Toggle microphone" : `${seat.user?.name || "User"} microphone status`}
-                          >
-                            <MicIcon />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="room-social-bar">
-                <div>
-                  <img src={user?.image || LOGO_SRC} alt="" />
-                  <span>{viewerSeat ? `Seat ${viewerSeat.seatIndex + 1}` : "Choose a seat to react"}</span>
-                </div>
-                <div className="room-emoji-bar">
-                  {ROOM_EMOJIS.map((emoji) => (
                     <button
-                      key={emoji.id}
                       type="button"
-                      onClick={() => onReaction?.(activeRoom.id, emoji.id)}
-                      disabled={!viewerSeat}
-                      aria-label={emoji.label}
+                      className="room-join-btn"
+                      disabled={room.isFull || busyAction === `join-${room.id}`}
+                      onClick={() => joinRoom(room)}
                     >
-                      {emoji.symbol}
+                      {room.isFull ? "Full" : room.joined ? "Open" : "Join"}
                     </button>
-                  ))}
-                </div>
+                  </article>
+                ))}
               </div>
-            </>
-          ) : (
-            <div className="room-stage-empty">
-              <RoomsIcon />
-              <h2>No room selected</h2>
-              <p>Create or join a room to start hanging out.</p>
-            </div>
-          )}
-        </main>
-      </div>
+            )}
+          </section>
+
+          <section className="rooms-feature-strip" aria-label="Room features">
+            {[
+              ["Audio Group Rooms", <MicIcon key="mic" />],
+              ["Create / Join / Leave", <PlusIcon key="create" />],
+              ["Room member count", <RoomsIcon key="rooms" />],
+              ["Seat avatars", <UserIcon key="user" />],
+              ["Mic on/off state", <MicIcon key="state" />],
+              ["Emoji reactions", <SmileIcon key="emoji" />]
+            ].map(([label, icon]) => (
+              <div key={label}>
+                {icon}
+                <span>{label}</span>
+              </div>
+            ))}
+          </section>
+
+          <AnimatePresence>
+            {createOpen && (
+              <motion.div
+                className="room-create-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <motion.form
+                  className="room-create-form room-create-panel"
+                  onSubmit={submitRoom}
+                  initial={{ opacity: 0, y: 26, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                >
+                  <div className="form-title">
+                    <span>Create Room</span>
+                    <button type="button" onClick={() => setCreateOpen(false)} aria-label="Close create room">
+                      <XIcon />
+                    </button>
+                  </div>
+                  <label>
+                    <span>Room Name</span>
+                    <input value={form.name} onChange={(event) => updateForm("name", event.target.value)} maxLength={80} required />
+                  </label>
+                  <label>
+                    <span>Description</span>
+                    <textarea value={form.description} onChange={(event) => updateForm("description", event.target.value)} maxLength={500} required />
+                  </label>
+                  <label>
+                    <span>Maximum Members</span>
+                    <select value={form.maxMembers} onChange={(event) => updateForm("maxMembers", Number(event.target.value))}>
+                      {[6, 8, 10, 12, 15, 20, 24].map((value) => (
+                        <option key={value} value={value}>{value}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {roomError && <div className="room-error">{roomError}</div>}
+                  <button type="submit" className="cta room-create-btn" disabled={creating || !form.name.trim() || !form.description.trim()}>
+                    {creating ? "Creating..." : "Create Room"}
+                  </button>
+                </motion.form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
     </section>
   );
 }
