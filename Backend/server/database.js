@@ -10,11 +10,7 @@ const REMOVED_BOT_IDS = new Set([
   "jessica",
   "emma",
   "sophia",
-  "liam",
-  "demo-maya-santos",
-  "demo-anton-reyes",
-  "demo-kai-lim",
-  "demo-ella-cruz"
+  "liam"
 ]);
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 const STORY_MUSIC_SRC_MAX_CHARS = 14_000_000;
@@ -56,6 +52,77 @@ const defaultState = {
   },
   events: []
 };
+
+const PRESENTATION_USERS = [
+  {
+    id: "demo-maya-santos",
+    email: "maya.santos@flame.demo",
+    fullName: "Maya Santos",
+    age: 22,
+    birthDate: "2004-04-12",
+    gender: "Woman",
+    interestedIn: "Everyone",
+    location: "Quezon City, Philippines",
+    bio: "Cafe hopping, study playlists, and spontaneous weekend plans.",
+    image: "/demo-maya.jpg",
+    interests: ["Coffee", "Music", "Travel", "Photography"],
+    zodiacSign: "Aries",
+    work: "Student creator",
+    school: "University of the Philippines",
+    lastActiveMinutes: 2
+  },
+  {
+    id: "demo-anton-reyes",
+    email: "anton.reyes@flame.demo",
+    fullName: "Anton Reyes",
+    age: 24,
+    birthDate: "2002-09-18",
+    gender: "Man",
+    interestedIn: "Women",
+    location: "Makati, Philippines",
+    bio: "Gym after work, ramen nights, and always down for a good movie.",
+    image: "/demo-anton.jpg",
+    interests: ["Fitness", "Movies", "Food", "Gaming"],
+    zodiacSign: "Virgo",
+    work: "Junior designer",
+    school: "Mapua University",
+    lastActiveMinutes: 8
+  },
+  {
+    id: "demo-sophia-cruz",
+    email: "sophia.cruz@flame.demo",
+    fullName: "Sophia Cruz",
+    age: 23,
+    birthDate: "2003-01-26",
+    gender: "Woman",
+    interestedIn: "Men",
+    location: "Taguig, Philippines",
+    bio: "Loves books, city walks, and playlists that feel like sunset.",
+    image: "/demo-sophia.jpg",
+    interests: ["Books", "Music", "Fashion", "Travel"],
+    zodiacSign: "Aquarius",
+    work: "Marketing assistant",
+    school: "De La Salle University",
+    lastActiveMinutes: 16
+  },
+  {
+    id: "demo-jessica-lim",
+    email: "jessica.lim@flame.demo",
+    fullName: "Jessica Lim",
+    age: 25,
+    birthDate: "2001-07-08",
+    gender: "Woman",
+    interestedIn: "Everyone",
+    location: "Manila, Philippines",
+    bio: "Trying every dessert spot in the city and taking too many photos.",
+    image: "/demo-jessica.jpg",
+    interests: ["Food", "Photography", "Movies", "Anime"],
+    zodiacSign: "Cancer",
+    work: "Content strategist",
+    school: "UST",
+    lastActiveMinutes: 31
+  }
+];
 
 const PUBLIC_USER_PROJECTION = {
   _id: 0,
@@ -1117,6 +1184,7 @@ export class FlameDatabase {
   async init() {
     if (this.forceLocal) {
       this.useLocalStore("FLAME_DATASTORE=local");
+      await this.seedPresentationUsers();
       return;
     }
 
@@ -1136,6 +1204,7 @@ export class FlameDatabase {
         throw error;
       }
       this.useLocalStore(error.message || "MongoDB is unavailable");
+      await this.seedPresentationUsers();
     }
   }
 
@@ -1155,6 +1224,7 @@ export class FlameDatabase {
         console.warn(`MongoDB index check failed: ${error.message}`);
       });
     }
+    await this.seedPresentationUsers();
   }
 
   async ensureIndexes() {
@@ -1199,6 +1269,84 @@ export class FlameDatabase {
     this.supportTickets = store.supportTickets;
     this.storageMode = "local";
     console.warn(`Using local Flame datastore at ${this.localDbPath}. Reason: ${reason}`);
+  }
+
+  presentationUserDocument(profile, now = Date.now()) {
+    const lastActiveAt = now - Math.max(1, Number(profile.lastActiveMinutes) || 5) * 60_000;
+    return normalizeUser({
+      id: profile.id,
+      email: profile.email,
+      passwordHash: passwordHash(randomUUID()),
+      joinedAt: now - 1000 * 60 * 60 * 24 * 20,
+      lastLoginAt: lastActiveAt,
+      lastActiveAt,
+      state: {
+        ...clone(defaultState),
+        privacy: {
+          ...clone(defaultState.privacy),
+          discoverable: true,
+          showDistance: true,
+          showOnline: true
+        },
+        user: {
+          ...clone(defaultState.user),
+          fullName: profile.fullName,
+          age: profile.age,
+          birthDate: profile.birthDate,
+          gender: profile.gender,
+          interestedIn: profile.interestedIn,
+          location: profile.location,
+          bio: profile.bio,
+          image: profile.image,
+          media: [profile.image],
+          interests: profile.interests,
+          zodiacSign: profile.zodiacSign,
+          work: profile.work,
+          school: profile.school,
+          onboardingCompleted: true
+        }
+      }
+    });
+  }
+
+  async seedPresentationUsers() {
+    const now = Date.now();
+    for (const profile of PRESENTATION_USERS) {
+      const existing = await this.users.findOne({ id: profile.id }, { projection: { _id: 0, id: 1 } });
+      if (existing) {
+        await this.users.updateOne(
+          { id: profile.id },
+          {
+            $set: {
+              lastActiveAt: now - Math.max(1, Number(profile.lastActiveMinutes) || 5) * 60_000,
+              "state.privacy.discoverable": true,
+              "state.privacy.showDistance": true,
+              "state.privacy.showOnline": true,
+              "state.user.fullName": profile.fullName,
+              "state.user.age": profile.age,
+              "state.user.birthDate": profile.birthDate,
+              "state.user.gender": profile.gender,
+              "state.user.interestedIn": profile.interestedIn,
+              "state.user.location": profile.location,
+              "state.user.bio": profile.bio,
+              "state.user.image": profile.image,
+              "state.user.media": [profile.image],
+              "state.user.interests": profile.interests,
+              "state.user.zodiacSign": profile.zodiacSign,
+              "state.user.work": profile.work,
+              "state.user.school": profile.school,
+              "state.user.onboardingCompleted": true
+            }
+          }
+        );
+        continue;
+      }
+
+      const existingEmail = await this.users.findOne({ email: profile.email }, { projection: { _id: 0, id: 1 } });
+      if (existingEmail) continue;
+
+      await this.users.insertOne(this.presentationUserDocument(profile, now));
+    }
   }
 
   async publicState(user, { includeFeed = true, includeProfiles = true } = {}) {
