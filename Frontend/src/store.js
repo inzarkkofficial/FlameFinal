@@ -551,17 +551,12 @@ function offlineError(error) {
 }
 
 function initialState() {
-  return getToken()
-    ? {
-        ...fallbackState,
-        auth: { ...fallbackState.auth, isAuthenticated: true }
-      }
-    : fallbackState;
+  return fallbackState;
 }
 
 export function useFlameStore() {
   const [state, setState] = useState(initialState);
-  const [hydrated, setHydrated] = useState(true);
+  const [hydrated, setHydrated] = useState(() => !getToken());
   const [feedLoading, setFeedLoading] = useState(false);
   const [lastError, setLastError] = useState("");
   const [typingByProfile, setTypingByProfile] = useState({});
@@ -645,11 +640,11 @@ export function useFlameStore() {
 
     async function hydrate() {
       if (!getToken()) {
+        setState(fallbackState);
         setHydrated(true);
         return;
       }
 
-      setHydrated(true);
       const sessionPromise = request("/session", {
         method: "GET",
         retryDelays: QUICK_RETRY_DELAYS_MS
@@ -667,6 +662,7 @@ export function useFlameStore() {
       const result = await sessionPromise;
       if (!cancelled) {
         if (!result.ok && (!getToken() || result.status === 401)) setState(fallbackState);
+        setHydrated(true);
       }
       feedPromise.catch(() => {});
       roomsPromise.catch(() => {});
@@ -872,13 +868,13 @@ export function useFlameStore() {
   );
 
   const like = useCallback(
-    (id, action = "like") => {
+    async (id, action = "like") => {
       setState((current) => ({
         ...current,
         likedIds: Array.from(new Set([...current.likedIds, id])),
         passedIds: current.passedIds.filter((passedId) => passedId !== id)
       }));
-      request("/swipes", { method: "POST", body: jsonBody({ profileId: id, action }) });
+      return request("/swipes", { method: "POST", body: jsonBody({ profileId: id, action }) });
     },
     [request]
   );
@@ -896,12 +892,27 @@ export function useFlameStore() {
   );
 
   const addMatch = useCallback(
-    (id) => {
+    (id, profile = null) => {
       setState((current) => {
         if (current.matches.some((match) => match.profileId === id)) return current;
+        const cachedProfile =
+          normalizeProfile(profile) ||
+          normalizeProfile(current.profiles.find((item) => item.id === id)) ||
+          profileCache.get(id) ||
+          null;
+        if (cachedProfile) profileCache.set(id, cachedProfile);
         return {
           ...current,
-          matches: [{ profileId: id, matchedAt: Date.now(), messages: [], pinnedMessageIds: [] }, ...current.matches]
+          matches: [
+            {
+              profileId: id,
+              matchedAt: Date.now(),
+              messages: [],
+              pinnedMessageIds: [],
+              ...(cachedProfile ? { profile: cachedProfile } : {})
+            },
+            ...current.matches
+          ]
         };
       });
       request("/matches", { method: "POST", body: jsonBody({ profileId: id }) });
@@ -1628,9 +1639,9 @@ export function profileForMatch(match) {
 
   return (
     profileById(match.profileId) ||
-    normalizeProfile(match.profile) || {
+    normalizeProfile({ id: match.profileId, ...(match.profile || {}) }) || {
       id: match.profileId,
-      name: match.profile?.name || "Match",
+      name: match.profile?.name || match.profile?.fullName || "Flame user",
       age: match.profile?.age || 18,
       image: resolveAsset(match.profile?.image),
       online: false,

@@ -1605,9 +1605,10 @@ export class FlameDatabase {
     await this.users.updateOne({ id: user.id }, { $set: { lastLoginAt, lastActiveAt: lastLoginAt } });
     const fullUser = await this.findUserById(user.id);
     const token = await this.createSession(user);
+    const sessionUser = fullUser || { ...user, lastLoginAt, lastActiveAt: lastLoginAt };
     return {
       token,
-      state: this.authState(fullUser || { ...user, lastLoginAt, lastActiveAt: lastLoginAt }),
+      state: await this.publicState(sessionUser, { includeFeed: false }),
       hydrate: true
     };
   }
@@ -1651,7 +1652,7 @@ export class FlameDatabase {
 
     await this.users.insertOne(user);
     const token = await this.createSession(user);
-    return { token, state: this.authState(user), hydrate: true };
+    return { token, state: await this.publicState(user, { includeFeed: false }), hydrate: true };
   }
 
   async saveState(user, nextState) {

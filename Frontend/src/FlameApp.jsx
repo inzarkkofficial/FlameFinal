@@ -401,7 +401,6 @@ export default function FlameApp() {
     setLight: setServerLight,
     like,
     pass,
-    addMatch,
     sendMessage,
     retryMessage,
     reactToMessage,
@@ -532,18 +531,20 @@ export default function FlameApp() {
     timers.current.burst = window.setTimeout(() => setMatchBurst(null), MATCH_BURST_MS);
   };
 
-  const handleSwipe = (profile, dir) => {
+  const handleSwipe = async (profile, dir) => {
     if (dir === "pass") {
       pass(profile.id);
       showToast(`Passed on ${profile.name}`);
       return;
     }
 
-    like(profile.id, dir);
-    const shouldMatch = dir === "super" || profile.likesYou || Math.random() > 0.45;
+    const result = await like(profile.id, dir);
+    if (!result.ok) {
+      showToast(result.error);
+      return;
+    }
 
-    if (shouldMatch) {
-      addMatch(profile.id);
+    if (result.matched) {
       showToast(`You matched with ${profile.name}`);
       startMatchCelebration(profile);
     } else {

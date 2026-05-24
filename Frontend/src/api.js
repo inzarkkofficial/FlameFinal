@@ -7,42 +7,45 @@ const API_URL = (import.meta.env.VITE_API_URL || defaultApiUrl).replace(/\/+$/, 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   (API_URL.startsWith("http") ? API_URL.replace(/\/api\/?$/, "") : undefined);
-const TOKEN_KEY = "flame-api-token";
+const LEGACY_TOKEN_KEY = "flame-api-token";
+const TOKEN_KEY = "flame-api-session-token";
 const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
 export const QUICK_RETRY_DELAYS_MS = [500, 900, 1600];
 let realtimeSocket;
 
-function readStorage(storage) {
+function readStorage(storage, key = TOKEN_KEY) {
   try {
-    return storage?.getItem(TOKEN_KEY) || "";
+    return storage?.getItem(key) || "";
   } catch {
     return "";
   }
 }
 
-function writeStorage(storage, token) {
+function writeStorage(storage, token, key = TOKEN_KEY) {
   try {
-    if (token) storage?.setItem(TOKEN_KEY, token);
-    else storage?.removeItem(TOKEN_KEY);
+    if (token) storage?.setItem(key, token);
+    else storage?.removeItem(key);
   } catch {
     // Storage can be blocked in private mode. Auth still works for the current page.
   }
 }
 
 export function getToken() {
-  const token = readStorage(globalThis.localStorage) || readStorage(globalThis.sessionStorage);
-  if (token && !readStorage(globalThis.localStorage)) writeStorage(globalThis.localStorage, token);
-  return token;
+  writeStorage(globalThis.localStorage, "", LEGACY_TOKEN_KEY);
+  writeStorage(globalThis.sessionStorage, "", LEGACY_TOKEN_KEY);
+  writeStorage(globalThis.localStorage, "");
+  return readStorage(globalThis.sessionStorage);
 }
 
 export function setToken(token) {
+  writeStorage(globalThis.localStorage, "", LEGACY_TOKEN_KEY);
+  writeStorage(globalThis.sessionStorage, "", LEGACY_TOKEN_KEY);
+  writeStorage(globalThis.localStorage, "");
   if (token) {
-    writeStorage(globalThis.localStorage, token);
     writeStorage(globalThis.sessionStorage, token);
     return;
   }
 
-  writeStorage(globalThis.localStorage, "");
   writeStorage(globalThis.sessionStorage, "");
 }
 
