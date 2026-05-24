@@ -10,7 +10,6 @@ import {
   reactRealtimePost,
   reactRealtimeMessage,
   removeRealtimeMessageForYou,
-  sendRealtimeMessage,
   sendRealtimeTyping,
   setToken,
   unsendRealtimeMessage
@@ -941,42 +940,33 @@ export function useFlameStore() {
       setState((current) => upsertMessageForProfile(current, profileId, message));
       joinRealtimeRoom({ profileId }).catch(() => {});
 
-      sendRealtimeMessage({ profileId, messageId, ...message })
-        .then((result) => {
-          if (result.message) {
-            setState((current) => upsertMessageForProfile(current, profileId, { ...result.message, status: "sent" }));
-          } else {
-            setState((current) =>
-              patchMessageForProfile(current, profileId, messageId, (item) => ({ ...item, status: "sent" }))
-            );
-          }
-          if (result.state) applyServerState(result.state);
-        })
-        .catch(async () => {
-          const result = await request("/messages", {
-            method: "POST",
-            body: jsonBody({ profileId, messageId, ...message })
-          });
-          if (result.ok) {
-            setState((current) =>
-              upsertMessageForProfile(current, profileId, {
-                ...message,
-                ...(result.message || {}),
-                status: "sent"
-              })
-            );
-          } else {
-            setState((current) =>
-              patchMessageForProfile(current, profileId, messageId, (item) => ({
-                ...item,
-                status: "failed",
-                error: result.error || "failed to send"
-              }))
-            );
-          }
-        });
+      request("/messages", {
+        method: "POST",
+        body: jsonBody({ profileId, messageId, ...message })
+      }).then((result) => {
+        if (result.ok) {
+          setState((current) =>
+            upsertMessageForProfile(current, profileId, {
+              ...message,
+              ...(result.message || {}),
+              status: "sent"
+            })
+          );
+          return;
+        }
+
+        setState((current) =>
+          patchMessageForProfile(current, profileId, messageId, (item) => ({
+            ...item,
+            status: "failed",
+            error: result.error || "failed to send"
+          }))
+        );
+      });
+
+      // The HTTP save emits Socket.IO updates from the backend, so it stays the single source of truth.
     },
-    [applyServerState, request, state.auth?.id]
+    [request, state.auth?.id]
   );
 
   const retryMessage = useCallback(
@@ -988,32 +978,23 @@ export function useFlameStore() {
       setState((current) => upsertMessageForProfile(current, profileId, payload));
       joinRealtimeRoom({ profileId }).catch(() => {});
 
-      sendRealtimeMessage({ profileId, messageId, ...payload })
-        .then((result) => {
-          setState((current) =>
-            upsertMessageForProfile(current, profileId, {
-              ...payload,
-              ...(result.message || {}),
-              status: "sent"
-            })
-          );
-          if (result.state) applyServerState(result.state);
-        })
-        .catch(async () => {
-          const result = await request("/messages", {
-            method: "POST",
-            body: jsonBody({ profileId, messageId, ...payload })
-          });
-          setState((current) =>
-            patchMessageForProfile(current, profileId, messageId, (message) => ({
-              ...message,
-              status: result.ok ? "sent" : "failed",
-              error: result.ok ? "" : result.error || "failed to send"
-            }))
-          );
-        });
+      request("/messages", {
+        method: "POST",
+        body: jsonBody({ profileId, messageId, ...payload })
+      }).then((result) => {
+        setState((current) =>
+          patchMessageForProfile(current, profileId, messageId, (message) => ({
+            ...message,
+            ...(result.message || {}),
+            status: result.ok ? "sent" : "failed",
+            error: result.ok ? "" : result.error || "failed to send"
+          }))
+        );
+      });
+
+      // The HTTP retry emits Socket.IO updates from the backend, so it stays the single source of truth.
     },
-    [applyServerState, request, state.matches]
+    [request, state.matches]
   );
 
   const patchMessageLocal = useCallback((profileId, messageId, updater) => {

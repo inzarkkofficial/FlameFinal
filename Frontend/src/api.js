@@ -1,7 +1,12 @@
 import { io } from "socket.io-client";
 
-const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || undefined;
+const PRODUCTION_API_URL = "https://flamefinal.onrender.com/api";
+const browserHost = globalThis.location?.hostname || "";
+const defaultApiUrl = browserHost.endsWith("vercel.app") ? PRODUCTION_API_URL : "/api";
+const API_URL = (import.meta.env.VITE_API_URL || defaultApiUrl).replace(/\/+$/, "");
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (API_URL.startsWith("http") ? API_URL.replace(/\/api\/?$/, "") : undefined);
 const TOKEN_KEY = "flame-api-token";
 const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
 let realtimeSocket;
@@ -77,7 +82,7 @@ export function sendRealtimeMessage(payload) {
       });
     });
 
-  return emitMessage("sendMessage", 7000).catch(() => emitMessage("message:send", 20000));
+  return emitMessage("sendMessage", 4500).catch(() => emitMessage("message:send", 4500));
 }
 
 export function joinRealtimeRoom(payload) {
