@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { Room, RoomEvent, Track, VideoPresets } from "livekit-client";
 import { profileForMatch, useFlameStore } from "./store.js";
 import { LoginPage, SignupPage } from "./AuthPages.jsx";
 import { api, connectRealtime, createLiveKitCallToken, sendCallSignal } from "./api.js";
@@ -9,7 +8,7 @@ import { AppSurface, PageFrame } from "./ui.jsx";
 import "./flame.css";
 import "./auth.css";
 
-const LOGO_SRC = "/flame-logo.gif";
+const LOGO_SRC = "/flame-logo-optimized.png";
 const MATCH_BURST_MS = 2800;
 const BOOST_MS = 20000;
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -80,6 +79,15 @@ const PROFILE_BACKGROUND_PRESETS = [
   { id: "rose", label: "Rose", value: "radial-gradient(circle at 28% 24%, #ff9fbc 0%, #fff2f6 38%, #fffaf8 100%)" },
   { id: "clean", label: "Clean", value: "linear-gradient(135deg, #ffffff 0%, #fff6f9 100%)" }
 ];
+let liveKitClientPromise = null;
+
+function loadLiveKitClient() {
+  if (!liveKitClientPromise) {
+    liveKitClientPromise = import("livekit-client");
+  }
+  return liveKitClientPromise;
+}
+
 const STORY_MUSIC_LIBRARY = [
   {
     id: "neon-heart",
@@ -458,6 +466,8 @@ export default function FlameApp() {
   const [now, setNow] = useState(Date.now());
   const [authPage, setAuthPage] = useState("login");
   const timers = useRef({ toast: null, burst: null, modal: null });
+  const chatWithRef = useRef(chatWith);
+  const matchesRef = useRef(state.matches);
   const boostUntil = state.boostUntil || 0;
 
   useEffect(() => {
@@ -486,14 +496,14 @@ export default function FlameApp() {
 
   const boostActive = boostUntil > now;
   const boostSeconds = Math.max(0, Math.ceil((boostUntil - now) / 1000));
-  const profileTabs = new Set(["edit-profile"]);
-  const settingsTabs = new Set(["privacy", "about", "help"]);
+  const profileTabs = useMemo(() => new Set(["edit-profile"]), []);
+  const settingsTabs = useMemo(() => new Set(["privacy", "about", "help"]), []);
 
-  const showToast = (msg) => {
+  const showToast = useCallback((msg) => {
     window.clearTimeout(timers.current.toast);
     setToast(msg);
     timers.current.toast = window.setTimeout(() => setToast(null), 1800);
-  };
+  }, []);
 
   const setAppLight = useCallback(
     (nextLight) => {
@@ -503,17 +513,19 @@ export default function FlameApp() {
     [setLocalLight, setServerLight]
   );
 
-  const navigateTo = (nextTab) => {
-    if (nextTab === tab) return;
-    setPageTransition(false);
-    setTab(nextTab);
-  };
+  const navigateTo = useCallback((nextTab) => {
+    setTab((current) => {
+      if (nextTab === current) return current;
+      setPageTransition(false);
+      return nextTab;
+    });
+  }, []);
 
-  const openChatWith = (profileId) => {
+  const openChatWith = useCallback((profileId) => {
     readConversation(profileId);
     setPageTransition(false);
     setChatWith(profileId);
-  };
+  }, [readConversation]);
 
   const popHeart = (x, y) => {
     const id = Date.now() + Math.random();
@@ -558,19 +570,28 @@ export default function FlameApp() {
     showToast(result.ok ? (boostActive ? "Boost extended" : "Boost active") : result.error);
   };
 
-  const scrollHomeToTop = () => {
+  const scrollHomeToTop = useCallback(() => {
     const home = document.querySelector(".home-screen .feed-list") || document.querySelector(".home-screen");
     home?.scrollTo?.({ top: 0, behavior: "smooth" });
     home?.scrollIntoView?.({ behavior: "smooth", block: "start" });
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, []);
 
-  const refreshHomeFeed = async () => {
+  const refreshHomeFeed = useCallback(async () => {
     scrollHomeToTop();
     const result = await refreshFeed();
     scrollHomeToTop();
     showToast(result.ok ? "Feed refreshed" : result.error);
-  };
+  }, [refreshFeed, scrollHomeToTop, showToast]);
+
+  const openNotifications = useCallback(() => setNotifOpen(true), []);
+
+  const logoutFromNav = useCallback(() => {
+    logout();
+    setChatWith(null);
+    setTab("home");
+    showToast("Logged out");
+  }, [logout, showToast]);
 
   const activeChatMessageCount = chatWith
     ? state.matches.find((item) => item.profileId === chatWith)?.messages.length || 0
@@ -589,7 +610,17 @@ export default function FlameApp() {
   }, [latestActivityId]);
 
   useEffect(() => {
-    if (state.auth.isAuthenticated && chatWith) readConversation(chatWith);
+    chatWithRef.current = chatWith;
+  }, [chatWith]);
+
+  useEffect(() => {
+    matchesRef.current = state.matches;
+  }, [state.matches]);
+
+  useEffect(() => {
+    if (!state.auth.isAuthenticated || !chatWith) return undefined;
+    const id = window.setTimeout(() => readConversation(chatWith), 120);
+    return () => window.clearTimeout(id);
   }, [activeChatMessageCount, chatWith, readConversation, state.auth.isAuthenticated]);
 
   useEffect(() => {
@@ -598,9 +629,9 @@ export default function FlameApp() {
     const socket = connectRealtime();
     const handleIncomingCallInvite = (payload) => {
       if (!payload || payload.kind !== "invite" || !payload.profileId) return;
-      if (chatWith === payload.profileId) return;
+      if (chatWithRef.current === payload.profileId) return;
 
-      const matched = state.matches.some(
+      const matched = matchesRef.current.some(
         (item) => item.profileId === payload.profileId && !item.deletedAt && !item.blockedAt
       );
       if (!matched) return;
@@ -613,7 +644,7 @@ export default function FlameApp() {
 
     socket.on("call:signal", handleIncomingCallInvite);
     return () => socket.off("call:signal", handleIncomingCallInvite);
-  }, [chatWith, readConversation, state.auth.isAuthenticated, state.matches]);
+  }, [readConversation, state.auth.isAuthenticated]);
 
   if (!hydrated) {
     return <AppSurface light={light} aria-hidden />;
@@ -706,7 +737,7 @@ export default function FlameApp() {
                 state={state}
                 feedLoading={feedLoading}
                 onMenu={() => setMenuOpen(true)}
-                onNotif={() => setNotifOpen(true)}
+                onNotif={openNotifications}
                 hasNotifications={hasUnreadActivity}
                 onCreatePost={async (content) => {
                   const result = await createPost(content);
@@ -773,7 +804,7 @@ export default function FlameApp() {
                 boostSeconds={boostSeconds}
                 onBoost={activateBoost}
                 onMenu={() => setMenuOpen(true)}
-                onNotif={() => setNotifOpen(true)}
+                onNotif={openNotifications}
                 hasNotifications={hasUnreadActivity}
                 onSwipe={handleSwipe}
                 onPop={popHeart}
@@ -1032,13 +1063,8 @@ export default function FlameApp() {
             setTab={navigateTo}
             unread={state.matches.filter((m) => !m.archivedAt && !m.deletedAt && m.messages.length === 0).length}
             onHomeRefresh={refreshHomeFeed}
-            onNotifications={() => setNotifOpen(true)}
-            onLogout={() => {
-              logout();
-              setChatWith(null);
-              setTab("home");
-              showToast("Logged out");
-            }}
+            onNotifications={openNotifications}
+            onLogout={logoutFromNav}
           />
       )}
 
@@ -4535,6 +4561,7 @@ function ChatScreen({
   const [callError, setCallError] = useState("");
   const callRef = useRef(null);
   const liveKitRoomRef = useRef(null);
+  const liveKitClientRef = useRef(null);
   const endingCallRef = useRef(false);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -4628,6 +4655,18 @@ function ChatScreen({
       setCallError("Call connection failed. Please try again.");
     });
 
+  const getLiveKitClient = async () => {
+    if (liveKitClientRef.current) return liveKitClientRef.current;
+    const client = await loadLiveKitClient();
+    liveKitClientRef.current = {
+      Room: client.Room,
+      RoomEvent: client.RoomEvent,
+      Track: client.Track,
+      VideoPresets: client.VideoPresets
+    };
+    return liveKitClientRef.current;
+  };
+
   const markCallActive = (mode = "") => {
     setCall((current) =>
       current
@@ -4659,7 +4698,8 @@ function ChatScreen({
 
   const attachLiveKitTracks = () => {
     const room = liveKitRoomRef.current;
-    if (!room) return;
+    const Track = liveKitClientRef.current?.Track;
+    if (!room || !Track) return;
 
     const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera);
     if (!attachPublication(localCamera, localVideoRef.current)) clearMediaElement(localVideoRef.current);
@@ -4697,6 +4737,7 @@ function ChatScreen({
       throw new Error("LiveKit call token is unavailable.");
     }
 
+    const { Room, RoomEvent, Track, VideoPresets } = await getLiveKitClient();
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
@@ -7024,7 +7065,7 @@ function EditProfile({ user, profiles = [], onSave, onCancel }) {
   );
 }
 
-function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogout }) {
+const BottomNav = memo(function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogout }) {
   const lastHomeTap = useRef(0);
   const items = [
     { id: "home", label: "Home", icon: <HomeIcon /> },
@@ -7088,7 +7129,7 @@ function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogo
       })}
     </nav>
   );
-}
+});
 
 function MatchModal({ profile, user, onClose, onMessage }) {
   return (

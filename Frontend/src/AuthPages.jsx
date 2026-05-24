@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
-const LOGO_SRC = "/flame-logo.gif";
+const LOGO_SRC = "/flame-logo-optimized.png";
 
 // Icon Components
 const EyeIcon = () => (
@@ -179,12 +179,23 @@ export function LoginPage({ onLogin, onSwitchToSignup }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async () => {
+  const handleLogin = async (event) => {
+    event?.preventDefault();
+    if (loading) return;
     setError("");
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
     setLoading(true);
-    const result = await onLogin({ email, password });
-    setError(result.ok ? "" : result.error);
-    setLoading(false);
+    try {
+      const result = await onLogin({ email: cleanEmail, password });
+      setError(result.ok ? "" : result.error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -221,8 +232,8 @@ export function LoginPage({ onLogin, onSwitchToSignup }) {
         </div>
 
           {/* Form */}
-          <div className="auth-form">
-          {error && <div className="form-error">{error}</div>}
+          <form className="auth-form" onSubmit={handleLogin}>
+          {error && <div className="form-error" role="alert">{error}</div>}
 
           {/* Email Field */}
           <div className="auth-field">
@@ -261,38 +272,15 @@ export function LoginPage({ onLogin, onSwitchToSignup }) {
             </div>
           </div>
 
-          {/* Forgot Password */}
-          <button className="auth-forgot-password">Forgot Password?</button>
-
           {/* Login Button */}
           <button 
             className="auth-primary-btn" 
-            onClick={handleLogin}
-            disabled={loading}
+            type="submit"
+            disabled={loading || !email.trim() || !password}
           >
             {loading ? "Logging In..." : "Log In"}
           </button>
-
-          {/* Continue With */}
-          <div className="auth-divider">or continue with</div>
-
-          {/* Social Login */}
-          <div className="auth-social">
-            <button className="auth-social-btn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="10" fill="#4285F4"/>
-              </svg>
-              <span>Google</span>
-            </button>
-            <button className="auth-social-btn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                <circle cx="12" cy="12" r="10"/>
-              </svg>
-              <span>Apple</span>
-            </button>
-          </div>
-
-        </div>
+        </form>
 
         {/* Security Message */}
         <div className="auth-security">
@@ -321,8 +309,16 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
   const [error, setError] = useState("");
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
 
-  const handleSignup = async () => {
+  const handleSignup = async (event) => {
+    event?.preventDefault();
+    if (loading) return;
     setError("");
+    const cleanName = fullName.trim();
+    const cleanEmail = email.trim();
+    if (!cleanName || !cleanEmail || !password) {
+      setError("Please complete your name, email, and password.");
+      return;
+    }
     if (calculatedAge !== "" && calculatedAge < 18) {
       setError("You must be at least 18 years old to sign up.");
       return;
@@ -334,17 +330,20 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
       return;
     }
     setLoading(true);
-    const result = await onSignup({
-      fullName: fullName.trim(),
-      email: email.trim(),
-      password,
-      birthDate,
-      age: calculatedAge || 18,
-      gender: cleanGender,
-      interestedIn: cleanInterestedIn
-    });
-    setError(result.ok ? "" : result.error);
-    setLoading(false);
+    try {
+      const result = await onSignup({
+        fullName: cleanName,
+        email: cleanEmail,
+        password,
+        birthDate,
+        age: calculatedAge || 18,
+        gender: cleanGender,
+        interestedIn: cleanInterestedIn
+      });
+      setError(result.ok ? "" : result.error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -374,8 +373,8 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
         </div>
 
           {/* Form */}
-          <div className="auth-form">
-          {error && <div className="form-error">{error}</div>}
+          <form className="auth-form" onSubmit={handleSignup}>
+          {error && <div className="form-error" role="alert">{error}</div>}
 
           {/* Full Name Field */}
           <div className="auth-field">
@@ -429,10 +428,10 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
             </div>
             <div className="auth-password-status">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" fill="#42d37b"/>
-                <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                <circle cx="12" cy="12" r="10" fill={password.length >= 6 ? "#42d37b" : "#ffba52"}/>
+                <path d={password.length >= 6 ? "M9 12l2 2 4-4" : "M12 7v6"} stroke="white" strokeWidth="2" strokeLinecap="round"/>
               </svg>
-              Password looks good!
+              {password.length >= 6 ? "Password looks good!" : "Use at least 6 characters."}
             </div>
           </div>
 
@@ -497,32 +496,20 @@ export function SignupPage({ onSignup, onSwitchToLogin }) {
           {/* Create Account Button */}
           <button 
             className="auth-primary-btn" 
-            type="button"
-            onClick={handleSignup}
-            disabled={loading}
+            type="submit"
+            disabled={
+              loading ||
+              !fullName.trim() ||
+              !email.trim() ||
+              password.length < 6 ||
+              !gender.trim() ||
+              !interestedIn.trim() ||
+              (calculatedAge !== "" && calculatedAge < 18)
+            }
           >
             {loading ? "Creating Account..." : "Create Account"}
           </button>
-
-          {/* Continue With */}
-          <div className="auth-divider">or continue with</div>
-
-          {/* Social Login */}
-          <div className="auth-social">
-            <button className="auth-social-btn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="12" r="10" fill="#4285F4"/>
-              </svg>
-              <span>Google</span>
-            </button>
-            <button className="auth-social-btn">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                <circle cx="12" cy="12" r="10"/>
-              </svg>
-              <span>Apple</span>
-            </button>
-          </div>
-        </div>
+        </form>
 
         {/* Terms and Security */}
         <div className="auth-terms">

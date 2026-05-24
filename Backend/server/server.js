@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createGzip } from "node:zlib";
 import { AccessToken } from "livekit-server-sdk";
 import { Server as SocketIOServer } from "socket.io";
 import { FlameDatabase } from "./database.js";
@@ -86,7 +87,8 @@ const mime = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".png": "image/png",
-  ".svg": "image/svg+xml"
+  ".svg": "image/svg+xml",
+  ".json": "application/json; charset=utf-8"
 };
 
 function sendJson(res, status, payload) {
@@ -96,6 +98,30 @@ function sendJson(res, status, payload) {
 
 function sendError(res, status, message) {
   sendJson(res, status, { ok: false, error: message });
+}
+
+function isTextAsset(filePath) {
+  return [".html", ".js", ".css", ".svg", ".json"].includes(extname(filePath));
+}
+
+function staticHeadersFor(filePath, immutable = false) {
+  return {
+    "Content-Type": mime[extname(filePath)] || "application/octet-stream",
+    "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+    "Vary": "Accept-Encoding"
+  };
+}
+
+function streamStaticFile(req, res, filePath, headers) {
+  const acceptsGzip = /\bgzip\b/.test(req.headers["accept-encoding"] || "");
+  if (acceptsGzip && isTextAsset(filePath)) {
+    res.writeHead(200, { ...headers, "Content-Encoding": "gzip" });
+    createReadStream(filePath).pipe(createGzip()).pipe(res);
+    return;
+  }
+
+  res.writeHead(200, headers);
+  createReadStream(filePath).pipe(res);
 }
 
 function normalizeRoutePath(pathname) {
@@ -191,7 +217,7 @@ async function createLiveKitCallToken(user, body = {}) {
     identity: user.id,
     name: publicDisplayName(user),
     metadata: JSON.stringify({
-      image: profile.image || "/flame-logo.gif",
+      image: profile.image || "/flame-logo-optimized.png",
       mode
     }),
     ttl: "2h"
@@ -1334,13 +1360,16 @@ function serveStatic(req, res, url) {
   if ((filePath !== CLIENT_DIST && !filePath.startsWith(clientDistRoot)) || !existsSync(filePath)) {
     const fallback = join(CLIENT_DIST, "index.html");
     if (!existsSync(fallback)) return sendError(res, 404, "Build the frontend with npm run build first.");
-    res.writeHead(200, { "Content-Type": mime[".html"] });
-    createReadStream(fallback).pipe(res);
+    streamStaticFile(req, res, fallback, staticHeadersFor(fallback, false));
     return;
   }
 
-  res.writeHead(200, { "Content-Type": mime[extname(filePath)] || "application/octet-stream" });
-  createReadStream(filePath).pipe(res);
+  const immutable =
+    requested.startsWith("/assets/") ||
+    requested === "/flame-logo.gif" ||
+    requested === "/flame-logo-optimized.png" ||
+    /\.[A-Za-z0-9_-]{8,}\./.test(requested);
+  streamStaticFile(req, res, filePath, staticHeadersFor(filePath, immutable));
 }
 
 export async function ensureDatabaseReady() {
@@ -1627,7 +1656,7 @@ function setupRealtime() {
           profileId: user.id,
           from: user.id,
           fromName: displayName,
-          fromImage: profile.image || "/flame-logo.gif",
+          fromImage: profile.image || "/flame-logo-optimized.png",
           sentAt: Date.now()
         });
         if (typeof acknowledge === "function") acknowledge({ ok: true });

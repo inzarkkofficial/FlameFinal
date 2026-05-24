@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { MongoClient } from "mongodb";
 
 const DEFAULT_MONGODB_URI = "mongodb://127.0.0.1:27017";
-const DEFAULT_PROFILE_IMAGE = "/flame-logo.gif";
+const DEFAULT_PROFILE_IMAGE = "/flame-logo-optimized.png";
 const REMOVED_BOT_IDS = new Set([
   "jessica",
   "emma",

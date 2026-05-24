@@ -11,7 +11,10 @@ const LEGACY_TOKEN_KEY = "flame-api-token";
 const TOKEN_KEY = "flame-api-session-token";
 const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
 export const QUICK_RETRY_DELAYS_MS = [500, 900, 1600];
+const GET_CACHE_TTL_MS = 4500;
 let realtimeSocket;
+const getResponseCache = new Map();
+const inFlightGetRequests = new Map();
 
 function readStorage(storage, key = TOKEN_KEY) {
   try {
@@ -52,7 +55,11 @@ export function setToken(token) {
 export function getRealtimeSocket() {
   if (!realtimeSocket) {
     realtimeSocket = io(SOCKET_URL, {
-      autoConnect: false
+      autoConnect: false,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 600,
+      reconnectionDelayMax: 5000,
+      transports: ["websocket", "polling"]
     });
   }
   return realtimeSocket;
@@ -66,7 +73,10 @@ export function connectRealtime() {
 }
 
 export function disconnectRealtime() {
-  if (realtimeSocket) realtimeSocket.disconnect();
+  if (realtimeSocket) {
+    realtimeSocket.removeAllListeners();
+    realtimeSocket.disconnect();
+  }
 }
 
 export function sendRealtimeMessage(payload) {
@@ -128,7 +138,6 @@ export function removeRealtimeMessageForYou(payload) {
 
 export function sendRealtimeTyping(payload) {
   const socket = connectRealtime();
-  socket.emit(payload?.typing ? "typing" : "stopTyping", payload);
   socket.emit("typing:update", payload);
 }
 
@@ -182,8 +191,25 @@ export async function api(path, options = {}) {
   const url = `${API_URL}${normalizedPath}`;
   const retryDelays = Array.isArray(options.retryDelays) ? options.retryDelays : RETRY_DELAYS_MS;
   const { retryDelays: _retryDelays, ...fetchOptions } = options;
+  const method = String(fetchOptions.method || "GET").toUpperCase();
+  const cacheKey = `${method}:${url}:${token}`;
+  const canUseGetCache =
+    method === "GET" &&
+    !fetchOptions.body &&
+    fetchOptions.cache !== "no-store" &&
+    fetchOptions.cache !== "reload" &&
+    !fetchOptions.signal;
+
+  if (canUseGetCache) {
+    const cached = getResponseCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < GET_CACHE_TTL_MS) return cached.payload;
+    const inFlight = inFlightGetRequests.get(cacheKey);
+    if (inFlight) return inFlight;
+  }
+
   const requestOptions = {
     ...fetchOptions,
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -191,46 +217,58 @@ export async function api(path, options = {}) {
     }
   };
 
-  let lastError = null;
-  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
-    let response;
-    try {
-      response = await fetch(url, requestOptions);
-    } catch (error) {
-      lastError = error;
-      if (attempt >= retryDelays.length) break;
-      await wakeBackend();
-      await wait(retryDelays[attempt]);
-      continue;
+  const fetchPromise = (async () => {
+    let lastError = null;
+    for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+      let response;
+      try {
+        response = await fetch(url, requestOptions);
+      } catch (error) {
+        lastError = error;
+        if (attempt >= retryDelays.length) break;
+        await wakeBackend();
+        await wait(retryDelays[attempt]);
+        continue;
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const payload = contentType.includes("application/json")
+        ? await response.json().catch(() => ({}))
+        : {};
+
+      if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < retryDelays.length) {
+        await wakeBackend();
+        await wait(retryDelays[attempt]);
+        continue;
+      }
+
+      if (!response.ok || payload.ok === false) {
+        const fallback =
+          response.status >= 500
+            ? "The Flame backend is still waking up. Please try again in a moment."
+            : "Request failed.";
+        const error = new Error(payload.error || fallback);
+        error.status = response.status;
+        throw error;
+      }
+
+      if (canUseGetCache) {
+        getResponseCache.set(cacheKey, { at: Date.now(), payload });
+      }
+      return payload;
     }
 
-    const contentType = response.headers.get("content-type") || "";
-    const payload = contentType.includes("application/json")
-      ? await response.json().catch(() => ({}))
-      : {};
+    const error = new Error("The Flame backend is still waking up. Please try again in a moment.");
+    error.cause = lastError;
+    throw error;
+  })();
 
-    if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < retryDelays.length) {
-      await wakeBackend();
-      await wait(retryDelays[attempt]);
-      continue;
-    }
-
-    if (!response.ok || payload.ok === false) {
-      const fallback =
-        response.status >= 500
-          ? "The Flame backend is still waking up. Please try again in a moment."
-          : "Request failed.";
-      const error = new Error(payload.error || fallback);
-      error.status = response.status;
-      throw error;
-    }
-
-    return payload;
+  if (canUseGetCache) {
+    inFlightGetRequests.set(cacheKey, fetchPromise);
+    fetchPromise.finally(() => inFlightGetRequests.delete(cacheKey)).catch(() => {});
   }
 
-  const error = new Error("The Flame backend is still waking up. Please try again in a moment.");
-  error.cause = lastError;
-  throw error;
+  return fetchPromise;
 }
 
 export function jsonBody(body) {

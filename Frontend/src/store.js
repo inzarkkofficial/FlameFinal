@@ -11,14 +11,17 @@ import {
   reactRealtimePost,
   reactRealtimeMessage,
   removeRealtimeMessageForYou,
+  sendRealtimeMessage,
   sendRealtimeTyping,
   setToken,
   unsendRealtimeMessage
 } from "./api.js";
 
-const DEFAULT_PROFILE_IMAGE = "/flame-logo.gif";
+const DEFAULT_PROFILE_IMAGE = "/flame-logo-optimized.png";
 const REMOVED_BOT_IDS = new Set(["jessica", "emma", "sophia", "liam"]);
 const legacyAssetMap = {
+  "/flame-logo.gif": DEFAULT_PROFILE_IMAGE,
+  "/flame-logo-optimized.jpg": DEFAULT_PROFILE_IMAGE,
   "/src/assets/jessica.jpg": DEFAULT_PROFILE_IMAGE,
   "/src/assets/user-emma.jpg": DEFAULT_PROFILE_IMAGE,
   "/src/assets/user-sophia.jpg": DEFAULT_PROFILE_IMAGE,
@@ -627,6 +630,7 @@ export function useFlameStore() {
     try {
       const result = await request("/feed", {
         method: "GET",
+        ...(options.force ? { cache: "reload" } : {}),
         ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
       });
       if (result.feed) applyFeed(result.feed);
@@ -777,8 +781,6 @@ export function useFlameStore() {
     socket.on("state:update", handleStateUpdate);
     socket.on("presence:update", handlePresenceUpdate);
     socket.on("typing:update", handleTypingUpdate);
-    socket.on("typing", handleTypingUpdate);
-    socket.on("stopTyping", handleTypingUpdate);
     socket.on("receiveMessage", handleReceiveMessage);
     socket.on("messageSent", handleMessageSent);
     socket.on("messageError", handleMessageError);
@@ -795,8 +797,6 @@ export function useFlameStore() {
       socket.off("state:update", handleStateUpdate);
       socket.off("presence:update", handlePresenceUpdate);
       socket.off("typing:update", handleTypingUpdate);
-      socket.off("typing", handleTypingUpdate);
-      socket.off("stopTyping", handleTypingUpdate);
       socket.off("receiveMessage", handleReceiveMessage);
       socket.off("messageSent", handleMessageSent);
       socket.off("messageError", handleMessageError);
@@ -975,11 +975,16 @@ export function useFlameStore() {
       setState((current) => upsertMessageForProfile(current, profileId, message));
       joinRealtimeRoom({ profileId }).catch(() => {});
 
-      request("/messages", {
-        method: "POST",
-        body: jsonBody({ profileId, messageId, ...message })
-      }).then((result) => {
+      const messagePayload = { profileId, messageId, ...message };
+      const persistMessage = () =>
+        request("/messages", {
+          method: "POST",
+          body: jsonBody(messagePayload)
+        });
+
+      sendRealtimeMessage(messagePayload).catch(persistMessage).then((result) => {
         if (result.ok) {
+          if (result.state) applyServerState(result.state);
           setState((current) =>
             upsertMessageForProfile(current, profileId, {
               ...message,
@@ -998,10 +1003,8 @@ export function useFlameStore() {
           }))
         );
       });
-
-      // The HTTP save emits Socket.IO updates from the backend, so it stays the single source of truth.
     },
-    [request, state.auth?.id]
+    [applyServerState, request, state.auth?.id]
   );
 
   const retryMessage = useCallback(
@@ -1013,10 +1016,15 @@ export function useFlameStore() {
       setState((current) => upsertMessageForProfile(current, profileId, payload));
       joinRealtimeRoom({ profileId }).catch(() => {});
 
-      request("/messages", {
-        method: "POST",
-        body: jsonBody({ profileId, messageId, ...payload })
-      }).then((result) => {
+      const messagePayload = { profileId, messageId, ...payload };
+      const persistMessage = () =>
+        request("/messages", {
+          method: "POST",
+          body: jsonBody(messagePayload)
+        });
+
+      sendRealtimeMessage(messagePayload).catch(persistMessage).then((result) => {
+        if (result.state) applyServerState(result.state);
         setState((current) =>
           patchMessageForProfile(current, profileId, messageId, (message) => ({
             ...message,
@@ -1026,10 +1034,8 @@ export function useFlameStore() {
           }))
         );
       });
-
-      // The HTTP retry emits Socket.IO updates from the backend, so it stays the single source of truth.
     },
-    [request, state.matches]
+    [applyServerState, request, state.matches]
   );
 
   const patchMessageLocal = useCallback((profileId, messageId, updater) => {
@@ -1500,7 +1506,7 @@ export function useFlameStore() {
   );
 
   const refreshFeed = useCallback(async () => {
-    return fetchFeed();
+    return fetchFeed({ force: true });
   }, [fetchFeed]);
 
   const createStory = useCallback(

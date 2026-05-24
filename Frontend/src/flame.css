@@ -1,5 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Pacifico&display=swap");
-
 :root {
   color-scheme: dark;
   --flame-space-1: 4px;
@@ -17553,5 +17551,206 @@ body {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Final presentation pass: stable mobile navigation, lighter rendering, and safer touch layout. */
+.flame-app.app-mode {
+  overflow-x: clip;
+  overscroll-behavior-y: contain;
+}
+
+.flame-app.app-mode img,
+.flame-app.auth-mode img {
+  content-visibility: auto;
+}
+
+.flame-app.app-mode :where(.feed-post, .chat, .liked-you, .new-match-card, .room-list-card, .profile-panel, .settings-panel, .home-side-card) {
+  contain: layout paint style;
+}
+
+.flame-app.app-mode :where(.feed-post, .room-list-card, .home-side-card) {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 420px;
+}
+
+.flame-app.app-mode :where(button, [role="button"], .icon-btn, .bottom-nav button, .cta, .secondary-cta) {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.flame-app.app-mode :where(button, [role="button"], .cta, .secondary-cta):disabled {
+  pointer-events: none;
+}
+
+.flame-app.app-mode :where(.feed-post, .chat, .liked-you, .new-match-card, .profile-panel, .settings-panel, .rooms-list-page, .room-stage-full, .room-create-panel) {
+  transform: translateZ(0);
+}
+
+.flame-app.app-mode :where(.feed-media, .message-media, .profile-feed-post img, .profile-feed-post video, .story-viewer-media) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 900px) {
+  .flame-app.app-mode {
+    --desktop-rail-width: 92px;
+    padding-left: var(--desktop-rail-width);
+    padding-bottom: 0;
+  }
+
+  .flame-app.app-mode .screen-transition-wrapper {
+    width: 100%;
+  }
+
+  .flame-app.app-mode .bottom-nav {
+    top: 14px !important;
+    right: auto !important;
+    bottom: 14px !important;
+    left: 14px !important;
+    width: 74px !important;
+    height: auto !important;
+    max-height: calc(100svh - 28px) !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-content: start !important;
+    gap: 8px !important;
+    padding: 12px 9px !important;
+    overflow-y: auto !important;
+    border-radius: 8px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 52px !important;
+    padding: 7px 4px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    max-width: 100% !important;
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+    white-space: normal !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .flame-app.app-mode {
+    --mobile-nav-height: 74px;
+    --mobile-pad: clamp(12px, 4vw, 18px);
+  }
+
+  .flame-app.app-mode .bottom-nav {
+    right: max(8px, env(safe-area-inset-right)) !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    width: auto !important;
+    height: var(--mobile-nav-height) !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
+    gap: 3px !important;
+    padding: 7px !important;
+    border-radius: 8px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    min-width: 0 !important;
+    min-height: 56px !important;
+    padding: 5px 2px !important;
+    gap: 3px !important;
+    border-radius: 8px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-icon-wrap {
+    width: 25px !important;
+    height: 25px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    display: block !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    font-size: clamp(8px, 2.45vw, 10px) !important;
+    line-height: 1.05 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.app-mode .screen:not(.chat-screen),
+  .flame-app.home-active .home-screen {
+    padding-bottom: calc(var(--mobile-nav-height) + 28px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .flame-app.app-mode .chat-screen {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+  }
+
+  .flame-app.app-mode .chat-header,
+  .flame-app.app-mode .chat-input,
+  .flame-app.app-mode .bottom-nav {
+    backdrop-filter: blur(12px) !important;
+  }
+
+  .flame-app.app-mode .chat-input {
+    grid-template-columns: 42px minmax(0, 1fr) 42px 42px !important;
+    gap: 7px !important;
+  }
+
+  .flame-app.app-mode .chat-input input {
+    min-height: 42px !important;
+  }
+
+  .flame-app.app-mode .feed-list,
+  .flame-app.app-mode .chat-thread,
+  .flame-app.app-mode .stories,
+  .flame-app.app-mode .story-music-results {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .flame-app.app-mode .rooms-feature-strip,
+  .flame-app.app-mode .settings-list,
+  .flame-app.app-mode .profile-media-grid {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .flame-app.app-mode {
+    --mobile-nav-height: 68px;
+  }
+
+  .flame-app.app-mode .bottom-nav {
+    gap: 1px !important;
+    padding: 6px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    min-height: 52px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    font-size: 8px !important;
+  }
+
+  .flame-app.app-mode .topbar .brand-text {
+    font-size: 26px !important;
+  }
+}
+
+@media (max-width: 340px) {
+  .flame-app.app-mode .bottom-nav .nav-label {
+    display: none !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-icon-wrap {
+    width: 30px !important;
+    height: 30px !important;
   }
 }

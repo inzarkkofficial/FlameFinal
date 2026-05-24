@@ -2029,6 +2029,51 @@
   color: #9a7b83;
 }
 
+.flame-app.auth-mode .auth-form {
+  width: 100%;
+}
+
+.flame-app.auth-mode :where(.auth-tab, .auth-primary-btn, .auth-option, .auth-toggle-password) {
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.flame-app.auth-mode .auth-primary-btn:disabled {
+  pointer-events: none;
+}
+
+.flame-app.auth-mode .form-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #fff;
+  background: rgba(255, 63, 104, 0.16);
+  border: 1px solid rgba(255, 101, 139, 0.36);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+@media (max-width: 480px) {
+  .flame-app.auth-mode .auth-page {
+    justify-content: flex-start;
+  }
+
+  .flame-app.auth-mode .auth-container {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .flame-app.auth-mode .auth-form {
+    gap: 12px;
+  }
+
+  .flame-app.auth-mode .signup-page .auth-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 1024px) {
   .flame-app.auth-mode.light-mode :is(.login-page, .signup-page) {
     background:
