@@ -7,6 +7,7 @@ import {
   joinRealtimeRoom,
   jsonBody,
   markRealtimeConversationRead,
+  QUICK_RETRY_DELAYS_MS,
   reactRealtimePost,
   reactRealtimeMessage,
   removeRealtimeMessageForYou,
@@ -560,7 +561,7 @@ function initialState() {
 
 export function useFlameStore() {
   const [state, setState] = useState(initialState);
-  const [hydrated, setHydrated] = useState(false);
+  const [hydrated, setHydrated] = useState(true);
   const [feedLoading, setFeedLoading] = useState(false);
   const [lastError, setLastError] = useState("");
   const [typingByProfile, setTypingByProfile] = useState({});
@@ -625,10 +626,13 @@ export function useFlameStore() {
     [applyServerState]
   );
 
-  const fetchFeed = useCallback(async () => {
+  const fetchFeed = useCallback(async (options = {}) => {
     setFeedLoading(true);
     try {
-      const result = await request("/feed", { method: "GET" });
+      const result = await request("/feed", {
+        method: "GET",
+        ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
+      });
       if (result.feed) applyFeed(result.feed);
       return result;
     } finally {
@@ -640,17 +644,29 @@ export function useFlameStore() {
     let cancelled = false;
 
     async function hydrate() {
-      const sessionPromise = request("/session", { method: "GET" });
-      const feedPromise = getToken() ? fetchFeed() : Promise.resolve(null);
+      if (!getToken()) {
+        setHydrated(true);
+        return;
+      }
+
+      setHydrated(true);
+      const sessionPromise = request("/session", {
+        method: "GET",
+        retryDelays: QUICK_RETRY_DELAYS_MS
+      });
+      const feedPromise = fetchFeed({ quick: true });
       const roomsPromise = getToken()
-        ? request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((result) => {
+        ? request(
+            "/group-rooms",
+            { method: "GET", retryDelays: QUICK_RETRY_DELAYS_MS },
+            { skipStateApply: true }
+          ).then((result) => {
             if (result.rooms) applyGroupRooms(result.rooms);
           })
         : Promise.resolve(null);
       const result = await sessionPromise;
       if (!cancelled) {
         if (!result.ok && (!getToken() || result.status === 401)) setState(fallbackState);
-        setHydrated(true);
       }
       feedPromise.catch(() => {});
       roomsPromise.catch(() => {});

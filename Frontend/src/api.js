@@ -9,6 +9,7 @@ const SOCKET_URL =
   (API_URL.startsWith("http") ? API_URL.replace(/\/api\/?$/, "") : undefined);
 const TOKEN_KEY = "flame-api-token";
 const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
+export const QUICK_RETRY_DELAYS_MS = [500, 900, 1600];
 let realtimeSocket;
 
 function readStorage(storage) {
@@ -176,8 +177,10 @@ export async function api(path, options = {}) {
   const token = getToken();
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_URL}${normalizedPath}`;
+  const retryDelays = Array.isArray(options.retryDelays) ? options.retryDelays : RETRY_DELAYS_MS;
+  const { retryDelays: _retryDelays, ...fetchOptions } = options;
   const requestOptions = {
-    ...options,
+    ...fetchOptions,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -186,15 +189,15 @@ export async function api(path, options = {}) {
   };
 
   let lastError = null;
-  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
     let response;
     try {
       response = await fetch(url, requestOptions);
     } catch (error) {
       lastError = error;
-      if (attempt >= RETRY_DELAYS_MS.length) break;
+      if (attempt >= retryDelays.length) break;
       await wakeBackend();
-      await wait(RETRY_DELAYS_MS[attempt]);
+      await wait(retryDelays[attempt]);
       continue;
     }
 
@@ -203,9 +206,9 @@ export async function api(path, options = {}) {
       ? await response.json().catch(() => ({}))
       : {};
 
-    if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < RETRY_DELAYS_MS.length) {
+    if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < retryDelays.length) {
       await wakeBackend();
-      await wait(RETRY_DELAYS_MS[attempt]);
+      await wait(retryDelays[attempt]);
       continue;
     }
 
