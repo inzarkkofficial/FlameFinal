@@ -1,0 +1,8 @@
+{
+  "appId": "com.flame.project",
+  "appName": "Flame",
+  "webDir": "Frontend/dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
