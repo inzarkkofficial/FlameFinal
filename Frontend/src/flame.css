@@ -17098,3 +17098,460 @@ body {
     font-size: 2.45rem !important;
   }
 }
+
+/* Presentation polish and performance-safe responsive overrides. */
+.flame-app.app-mode {
+  --presentation-pad: clamp(14px, 3vw, 34px);
+  --presentation-card: rgba(35, 13, 24, 0.84);
+  --presentation-border: rgba(255, 104, 143, 0.22);
+  text-rendering: optimizeLegibility;
+}
+
+.flame-app.app-mode :where(button, [role="button"], a) {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.flame-app.app-mode :where(button, [role="button"]):not(:disabled):active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.flame-app.app-mode :where(button, [role="button"]):disabled {
+  opacity: 0.48 !important;
+  box-shadow: none !important;
+}
+
+.flame-app.app-mode :where(.rooms-landing-hero, .rooms-list-page, .rooms-feature-strip, .room-stage-full, .room-create-panel, .chat, .liked-you, .new-match-card, .profile-panel, .settings-panel) {
+  border-radius: 8px !important;
+}
+
+.flame-app.app-mode :where(.rooms-landing-hero, .rooms-list-page, .rooms-feature-strip, .room-stage-full, .room-create-panel, .profile-panel, .settings-panel) {
+  background:
+    linear-gradient(145deg, rgba(42, 12, 25, 0.92), rgba(15, 3, 10, 0.96)) !important;
+  border-color: var(--presentation-border) !important;
+}
+
+.flame-app.app-mode .page-title {
+  line-height: 1.05 !important;
+}
+
+.flame-app.app-mode .topbar {
+  gap: 12px !important;
+}
+
+.flame-app.app-mode .icon-btn,
+.flame-app.app-mode .bottom-nav button,
+.flame-app.app-mode .room-create-hero-btn,
+.flame-app.app-mode .room-join-btn,
+.flame-app.app-mode .rooms-list-head button,
+.flame-app.app-mode .room-stage-actions button,
+.flame-app.app-mode .settings-row,
+.flame-app.app-mode .profile-panel-head button {
+  min-height: 44px !important;
+}
+
+.flame-app.app-mode .chat-list,
+.flame-app.app-mode .liked-you-list {
+  gap: 12px !important;
+}
+
+.flame-app.app-mode .conversation-item,
+.flame-app.app-mode .liked-you,
+.flame-app.app-mode .new-match-card {
+  overflow: visible !important;
+}
+
+.flame-app.app-mode .chat,
+.flame-app.app-mode .liked-you,
+.flame-app.app-mode .new-match-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  background:
+    linear-gradient(145deg, rgba(42, 18, 29, 0.94), rgba(20, 7, 14, 0.96)) !important;
+  border: 1px solid rgba(255, 104, 143, 0.2) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24) !important;
+}
+
+.flame-app.app-mode :where(.chat, .liked-you, .new-match-card) :where(b, span, em, small) {
+  min-width: 0;
+}
+
+.flame-app.app-mode .settings-row {
+  border-radius: 8px !important;
+}
+
+.flame-app.app-mode .settings-row:hover,
+.flame-app.app-mode .settings-row:focus-visible,
+.flame-app.app-mode .rooms-list-head button:hover,
+.flame-app.app-mode .room-stage-actions button:hover,
+.flame-app.app-mode .room-create-hero-btn:hover,
+.flame-app.app-mode .room-join-btn:hover {
+  border-color: rgba(255, 113, 149, 0.42) !important;
+  box-shadow: 0 16px 34px rgba(255, 63, 104, 0.16) !important;
+}
+
+.flame-app.app-mode .group-rooms-screen {
+  display: grid !important;
+  align-content: start !important;
+  gap: 18px !important;
+  overflow-x: hidden !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero {
+  grid-template-columns: minmax(0, 1.08fr) minmax(220px, 0.72fr) !important;
+  min-height: 250px !important;
+  padding: clamp(22px, 4vw, 40px) !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero h1 {
+  max-width: 650px !important;
+  margin: 10px 0 10px !important;
+  line-height: 0.98 !important;
+  font-size: clamp(2.4rem, 5.4vw, 4.9rem) !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero p {
+  max-width: 620px !important;
+}
+
+.flame-app.app-mode .room-hero-art {
+  min-height: 190px !important;
+  transform: translateZ(0);
+}
+
+.flame-app.app-mode .room-hero-art::before {
+  width: min(210px, 58vw) !important;
+}
+
+.flame-app.app-mode .rooms-list-page {
+  margin-top: 0 !important;
+  padding: clamp(16px, 3vw, 24px) !important;
+}
+
+.flame-app.app-mode .rooms-list-head {
+  align-items: center !important;
+}
+
+.flame-app.app-mode .rooms-empty,
+.flame-app.app-mode .room-error {
+  line-height: 1.45 !important;
+}
+
+.flame-app.app-mode .room-list-card {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+}
+
+.flame-app.app-mode .room-list-main {
+  min-width: 0 !important;
+}
+
+.flame-app.app-mode .rooms-feature-strip {
+  margin-top: 0 !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  padding: 16px !important;
+}
+
+.flame-app.app-mode .rooms-feature-strip div {
+  min-width: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.flame-app.app-mode .rooms-feature-strip span {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-wrap: anywhere !important;
+}
+
+.flame-app.app-mode .room-stage-full {
+  min-height: calc(100svh - 72px) !important;
+  padding: clamp(16px, 3vw, 28px) !important;
+}
+
+.flame-app.app-mode .seating-layout-stage {
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)) !important;
+  gap: clamp(14px, 3vw, 34px) !important;
+  padding-bottom: 120px !important;
+}
+
+.flame-app.app-mode .room-seat {
+  min-width: 0 !important;
+}
+
+.flame-app.app-mode .room-callbar {
+  grid-template-columns: repeat(3, minmax(76px, 0.8fr)) minmax(220px, 1.6fr) !important;
+}
+
+.flame-app.app-mode .room-callbar button {
+  border-radius: 8px !important;
+}
+
+.flame-app.app-mode .room-emoji-bar button {
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 auto !important;
+}
+
+.flame-app.app-mode .room-create-overlay {
+  padding: clamp(12px, 3vw, 24px) !important;
+}
+
+.flame-app.app-mode .room-create-panel {
+  max-height: calc(100svh - 32px) !important;
+  overflow-y: auto !important;
+}
+
+@media (min-width: 900px) {
+  .flame-app.app-mode .screen-transition-wrapper {
+    min-height: 100svh !important;
+  }
+
+  .flame-app.app-mode .screen:not(.chat-screen),
+  .flame-app.home-active .home-screen {
+    padding-top: 14px !important;
+    padding-bottom: 54px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    width: 100% !important;
+  }
+
+  .flame-app.app-mode .group-rooms-screen {
+    padding: 14px clamp(22px, 3vw, 42px) 54px !important;
+  }
+
+  .flame-app.app-mode .screen[aria-label="Messages"],
+  .flame-app.app-mode .screen[aria-label="Match history"] {
+    max-width: 1180px !important;
+  }
+
+  .flame-app.app-mode .profile-page-shell,
+  .flame-app.app-mode .settings-page-shell {
+    max-width: 1240px !important;
+    margin-inline: auto !important;
+  }
+}
+
+@media (max-width: 899px) {
+  .flame-app.app-mode {
+    --mobile-nav-height: 76px;
+    --mobile-pad: clamp(12px, 4vw, 18px);
+  }
+
+  .flame-app.app-mode .screen-transition-wrapper {
+    width: 100% !important;
+    min-height: 100svh !important;
+  }
+
+  .flame-app.app-mode .screen:not(.chat-screen),
+  .flame-app.home-active .home-screen {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 16px var(--mobile-pad) calc(var(--mobile-nav-height) + 32px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .flame-app.app-mode .screen > .topbar,
+  .flame-app.home-active .home-topbar {
+    width: calc(100% + (var(--mobile-pad) * 2)) !important;
+    margin: -16px calc(var(--mobile-pad) * -1) 16px !important;
+    padding: calc(10px + env(safe-area-inset-top)) var(--mobile-pad) 10px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav {
+    right: 10px !important;
+    bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+    left: 10px !important;
+    width: auto !important;
+    height: var(--mobile-nav-height) !important;
+    display: grid !important;
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 2px !important;
+    padding: 7px !important;
+    border-radius: 8px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .desktop-only,
+  .flame-app.app-mode .bottom-nav .nav-rail-brand {
+    display: none !important;
+  }
+
+  .flame-app.app-mode .bottom-nav button {
+    min-width: 0 !important;
+    height: 100% !important;
+    padding: 4px 2px !important;
+    gap: 3px !important;
+    border-radius: 8px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-icon-wrap {
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    font-size: 9.5px !important;
+    line-height: 1.05 !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .flame-app.app-mode .group-rooms-screen {
+    padding: 14px var(--mobile-pad) calc(var(--mobile-nav-height) + 30px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .flame-app.app-mode .rooms-landing-hero {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+    min-height: 0 !important;
+    padding: 20px !important;
+  }
+
+  .flame-app.app-mode .rooms-landing-hero h1 {
+    font-size: clamp(2.15rem, 11vw, 3.35rem) !important;
+  }
+
+  .flame-app.app-mode .room-hero-art {
+    min-height: 128px !important;
+  }
+
+  .flame-app.app-mode .room-hero-art::before {
+    width: 148px !important;
+  }
+
+  .flame-app.app-mode .hero-mic {
+    top: 10px !important;
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .flame-app.app-mode .room-hero-art img {
+    width: 68px !important;
+    height: 68px !important;
+  }
+
+  .flame-app.app-mode .rooms-list-head {
+    flex-wrap: wrap !important;
+  }
+
+  .flame-app.app-mode .rooms-list-head button {
+    flex: 1 1 120px !important;
+  }
+
+  .flame-app.app-mode .room-list-card,
+  .flame-app.app-mode .room-list-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .flame-app.app-mode .room-thumbnail {
+    display: none !important;
+  }
+
+  .flame-app.app-mode .room-join-btn {
+    width: 100% !important;
+  }
+
+  .flame-app.app-mode .rooms-feature-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+
+  .flame-app.app-mode .rooms-feature-strip svg {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  .flame-app.app-mode .room-stage-head {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .flame-app.app-mode .room-stage-actions {
+    grid-column: 1 / -1 !important;
+    justify-content: stretch !important;
+  }
+
+  .flame-app.app-mode .room-stage-actions button {
+    flex: 1 1 110px !important;
+  }
+
+  .flame-app.app-mode .room-stage-full {
+    min-height: auto !important;
+    padding: 14px !important;
+  }
+
+  .flame-app.app-mode .seating-layout-stage {
+    grid-template-columns: repeat(2, minmax(118px, 1fr)) !important;
+    padding-bottom: 18px !important;
+  }
+
+  .flame-app.app-mode .room-callbar {
+    position: sticky !important;
+    right: auto !important;
+    bottom: calc(var(--mobile-nav-height) + 10px + env(safe-area-inset-bottom)) !important;
+    left: auto !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    margin-top: 16px !important;
+  }
+
+  .flame-app.app-mode .room-emoji-bar {
+    grid-column: 1 / -1 !important;
+    justify-content: center !important;
+  }
+
+  .flame-app.app-mode .profile-page-shell,
+  .flame-app.app-mode .settings-page-shell,
+  .flame-app.app-mode .profile-content-grid,
+  .flame-app.app-mode .settings-dashboard-grid {
+    width: 100% !important;
+    max-width: none !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .flame-app.app-mode .profile-hero-actions {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .flame-app.app-mode .settings-dashboard-head h1,
+  .flame-app.app-mode .profile-hero-main h1 {
+    font-size: clamp(1.85rem, 8vw, 2.5rem) !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .flame-app.app-mode {
+    --mobile-nav-height: 66px;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-label {
+    display: none !important;
+  }
+
+  .flame-app.app-mode .bottom-nav .nav-icon-wrap {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .flame-app.app-mode .rooms-feature-strip {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flame-app.app-mode *,
+  .flame-app.app-mode *::before,
+  .flame-app.app-mode *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

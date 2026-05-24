@@ -5526,13 +5526,18 @@ function GroupRoomsScreen({
   const [now, setNow] = useState(Date.now());
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const viewerSeat = activeRoom?.seats?.find((seat) => seat.user?.id === viewerId) || null;
+  const firstAvailableSeat = activeRoom?.seats?.find((seat) => seat.available) || null;
   const featuredRoom = activeRoom || rooms.find((room) => room.joined) || rooms[0] || null;
 
   useEffect(() => {
     onRefresh?.();
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
   }, [onRefresh]);
+
+  useEffect(() => {
+    if (mode !== "room") return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1500);
+    return () => window.clearInterval(timer);
+  }, [mode]);
 
   useEffect(() => {
     if (!activeRoomId || rooms.some((room) => room.id === activeRoomId)) return;
@@ -5718,9 +5723,17 @@ function GroupRoomsScreen({
               <MicIcon />
               <span>Mic</span>
             </button>
-            <button type="button" disabled={!viewerSeat}>
+            <button
+              type="button"
+              onClick={() => firstAvailableSeat && chooseSeat(firstAvailableSeat.seatIndex)}
+              disabled={
+                !firstAvailableSeat ||
+                busyAction === `seat-${firstAvailableSeat?.seatIndex}` ||
+                (activeRoom.isFull && !activeRoom.joined)
+              }
+            >
               <span aria-hidden="true">+</span>
-              <span>Seat</span>
+              <span>{viewerSeat ? "Move" : "Seat"}</span>
             </button>
             <div className="room-emoji-bar">
               {ROOM_EMOJIS.map((emoji) => (
@@ -7020,7 +7033,7 @@ function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogo
     { id: "matches", label: "Matches", icon: <FlameIcon />, mobileOnly: true },
     { id: "messages", label: "Messages", badge: unread, icon: <MessageIcon /> },
     { id: "profile", label: "Profile", icon: <UserIcon /> },
-    { id: "settings", label: "Settings", icon: <SettingsIcon />, desktopOnly: true },
+    { id: "settings", label: "Settings", icon: <SettingsIcon /> },
     { id: "logout", label: "Log out", icon: <LogoutIcon />, desktopOnly: true, action: onLogout, separated: true }
   ];
 
@@ -7043,9 +7056,17 @@ function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogo
               return;
             }
             if (item.id === "home") {
-              lastHomeTap.current = 0;
-              if (tab !== "home") setTab("home");
-              window.setTimeout(() => onHomeRefresh?.(), 0);
+              const alreadyHome = tab === "home";
+              if (!alreadyHome) {
+                lastHomeTap.current = Date.now();
+                setTab("home");
+                return;
+              }
+              const now = Date.now();
+              if (now - lastHomeTap.current < 700) {
+                window.setTimeout(() => onHomeRefresh?.(), 0);
+              }
+              lastHomeTap.current = now;
               return;
             }
             lastHomeTap.current = 0;

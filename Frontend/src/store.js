@@ -561,6 +561,7 @@ export function useFlameStore() {
   const [lastError, setLastError] = useState("");
   const [typingByProfile, setTypingByProfile] = useState({});
   const postReactionQueue = useRef(new Map());
+  const feedRefreshTimer = useRef(null);
 
   const withPendingPostReactions = useCallback((nextState) => {
     const queue = postReactionQueue.current;
@@ -680,6 +681,7 @@ export function useFlameStore() {
         if (entry.timer) window.clearTimeout(entry.timer);
       });
       postReactionQueue.current.clear();
+      if (feedRefreshTimer.current) window.clearTimeout(feedRefreshTimer.current);
     };
   }, []);
 
@@ -723,7 +725,11 @@ export function useFlameStore() {
       setTypingByProfile((current) => ({ ...current, [profileId]: Boolean(typing) }));
     };
     const handleFeedUpdate = () => {
-      fetchFeed();
+      if (feedRefreshTimer.current) window.clearTimeout(feedRefreshTimer.current);
+      feedRefreshTimer.current = window.setTimeout(() => {
+        feedRefreshTimer.current = null;
+        fetchFeed({ quick: true });
+      }, 350);
     };
     const handleReceiveMessage = ({ profileId, message }) => {
       if (!profileId || !message?.id) return;

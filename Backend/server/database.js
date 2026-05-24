@@ -1161,6 +1161,9 @@ export class FlameDatabase {
     const indexSpecs = [
       [this.users, { email: 1 }, { unique: true }],
       [this.users, { id: 1 }, { unique: true }],
+      [this.users, { lastActiveAt: -1 }],
+      [this.users, { joinedAt: -1 }],
+      [this.users, { "state.privacy.discoverable": 1 }],
       [this.sessions, { token: 1 }, { unique: true }],
       [this.sessions, { userId: 1 }],
       [this.sessions, { lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }],
@@ -1281,7 +1284,15 @@ export class FlameDatabase {
 
   async discoverProfiles(currentUser) {
     const normalizedCurrent = normalizeUser(currentUser);
-    const users = await this.users.find({ id: { $ne: normalizedCurrent.id } }).project(PUBLIC_USER_PROJECTION).toArray();
+    const users = await this.users
+      .find({
+        id: { $ne: normalizedCurrent.id },
+        "state.privacy.discoverable": { $ne: false }
+      })
+      .project(PUBLIC_USER_PROJECTION)
+      .sort({ lastActiveAt: -1, joinedAt: -1 })
+      .limit(80)
+      .toArray();
     const activeUserIds = await this.activeUserIds();
     const matchedIds = new Set(normalizedCurrent.state.matches.map((match) => match.profileId));
     const blockedIds = new Set(normalizedCurrent.state.blockedIds || []);
