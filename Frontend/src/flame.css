@@ -16922,3 +16922,179 @@ body {
     justify-content: flex-start;
   }
 }
+
+/* Keep Group Rooms visually aligned with the main Flame app skin. */
+.flame-app.app-mode .group-rooms-screen {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100svh !important;
+  margin: 0 !important;
+  padding: clamp(18px, 3vw, 34px) clamp(16px, 4vw, 44px) 118px !important;
+  color: #fff7f7 !important;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(255, 74, 126, 0.2), transparent 34%),
+    radial-gradient(circle at 80% 18%, rgba(255, 116, 95, 0.14), transparent 30%),
+    linear-gradient(145deg, #080005 0%, #15040d 44%, #0a0107 100%) !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero,
+.flame-app.app-mode .rooms-list-page,
+.flame-app.app-mode .rooms-feature-strip,
+.flame-app.app-mode .room-stage-full,
+.flame-app.app-mode .room-create-panel {
+  border: 1px solid rgba(255, 90, 135, 0.28) !important;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(255, 93, 146, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(45, 11, 25, 0.96), rgba(17, 2, 10, 0.98)) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34) !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero {
+  min-height: 280px !important;
+  overflow: hidden !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero::after {
+  background: radial-gradient(circle, rgba(255, 72, 124, 0.24), transparent 62%) !important;
+}
+
+.flame-app.app-mode .rooms-kicker {
+  color: #ff6fa4 !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero h1 {
+  background: linear-gradient(135deg, #fff4f7 0%, #ff5d91 52%, #ff7b62 100%) !important;
+  -webkit-background-clip: text !important;
+  color: transparent !important;
+  font-size: clamp(2.35rem, 6vw, 4.8rem) !important;
+}
+
+.flame-app.app-mode .rooms-landing-hero p,
+.flame-app.app-mode .room-stage-head p,
+.flame-app.app-mode .room-list-card small,
+.flame-app.app-mode .room-list-card em {
+  color: rgba(255, 222, 231, 0.78) !important;
+}
+
+.flame-app.app-mode .room-create-hero-btn,
+.flame-app.app-mode .room-join-btn,
+.flame-app.app-mode .room-create-btn {
+  background: linear-gradient(135deg, #ff3f68, #ff7a5f) !important;
+  color: #fff !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 18px 38px rgba(255, 63, 104, 0.28) !important;
+}
+
+.flame-app.app-mode .room-hero-art::before {
+  background:
+    radial-gradient(circle, rgba(255, 63, 104, 0.98) 0 18%, rgba(255, 122, 95, 0.28) 19% 44%, transparent 45%),
+    conic-gradient(from 0deg, rgba(255, 63, 104, 0.12), rgba(255, 122, 95, 0.46), rgba(255, 63, 104, 0.12)) !important;
+  filter: drop-shadow(0 30px 40px rgba(255, 63, 104, 0.26)) !important;
+}
+
+.flame-app.app-mode .hero-mic {
+  background: linear-gradient(135deg, #ff3f68, #ff7a5f) !important;
+  box-shadow: 0 16px 34px rgba(255, 63, 104, 0.32) !important;
+}
+
+.flame-app.app-mode .room-hero-art i,
+.flame-app.app-mode .room-hero-art b {
+  background: rgba(255, 95, 140, 0.82) !important;
+}
+
+.flame-app.app-mode .room-hero-art b {
+  background: rgba(255, 122, 95, 0.78) !important;
+}
+
+.flame-app.app-mode .rooms-list-head span,
+.flame-app.app-mode .room-list-card b,
+.flame-app.app-mode .room-stage-head h2,
+.flame-app.app-mode .room-create-panel .form-title {
+  color: #fff8f8 !important;
+}
+
+.flame-app.app-mode .rooms-list-head button,
+.flame-app.app-mode .room-back-btn,
+.flame-app.app-mode .room-stage-actions button {
+  border-color: rgba(255, 90, 135, 0.24) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ffe4eb !important;
+}
+
+.flame-app.app-mode .room-stage-actions .danger,
+.flame-app.app-mode .room-leave-control {
+  color: #ff7d91 !important;
+  border-color: rgba(255, 90, 135, 0.3) !important;
+  background: rgba(255, 63, 104, 0.12) !important;
+}
+
+.flame-app.app-mode .room-list-card {
+  border-color: rgba(255, 90, 135, 0.22) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 80, 126, 0.07)) !important;
+}
+
+.flame-app.app-mode .room-thumbnail {
+  background: linear-gradient(135deg, rgba(255, 63, 104, 0.86), rgba(255, 122, 95, 0.62)) !important;
+}
+
+.flame-app.app-mode .rooms-feature-strip svg,
+.flame-app.app-mode .available-seat-btn svg {
+  color: #ff6f9c !important;
+  filter: drop-shadow(0 12px 22px rgba(255, 63, 104, 0.25)) !important;
+}
+
+.flame-app.app-mode .room-stage-full {
+  background:
+    radial-gradient(circle at 50% 26%, rgba(255, 63, 104, 0.17), transparent 25%),
+    radial-gradient(circle at 25% 82%, rgba(255, 122, 95, 0.12), transparent 28%),
+    linear-gradient(145deg, rgba(39, 8, 22, 0.98), rgba(8, 1, 7, 0.99)) !important;
+}
+
+.flame-app.app-mode .room-seat img {
+  border-color: #ff5d91 !important;
+  box-shadow: 0 0 0 3px rgba(255, 122, 95, 0.35), 0 18px 35px rgba(0, 0, 0, 0.28) !important;
+}
+
+.flame-app.app-mode .room-seat.mine img {
+  border-color: #ff7a5f !important;
+  box-shadow: 0 0 0 3px rgba(255, 93, 145, 0.55), 0 0 38px rgba(255, 63, 104, 0.22) !important;
+}
+
+.flame-app.app-mode .seat-mic-status.on,
+.flame-app.app-mode .room-mic-control.on {
+  color: #ff9aa8 !important;
+}
+
+.flame-app.app-mode .seat-mic-btn.on {
+  color: #fff !important;
+  background: linear-gradient(135deg, #ff3f68, #ff7a5f) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 0 22px rgba(255, 63, 104, 0.32) !important;
+}
+
+.flame-app.app-mode .available-seat-btn,
+.flame-app.app-mode .room-callbar,
+.flame-app.app-mode .room-create-panel input,
+.flame-app.app-mode .room-create-panel textarea,
+.flame-app.app-mode .room-create-panel select,
+.flame-app.app-mode .room-emoji-bar button {
+  border-color: rgba(255, 90, 135, 0.24) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #ffe7ed !important;
+}
+
+.flame-app.app-mode .room-callbar {
+  background: rgba(19, 2, 11, 0.9) !important;
+  backdrop-filter: blur(18px) !important;
+}
+
+.flame-app.app-mode .room-create-overlay {
+  background: rgba(8, 0, 6, 0.72) !important;
+}
+
+@media (max-width: 520px) {
+  .flame-app.app-mode .rooms-landing-hero h1 {
+    font-size: 2.45rem !important;
+  }
+}
