@@ -1015,6 +1015,10 @@ class LocalCursor {
     return this;
   }
 
+  hint() {
+    return this;
+  }
+
   limit(count) {
     this.documents = this.documents.slice(0, Math.max(0, Number(count) || 0));
     return this;
@@ -1251,6 +1255,7 @@ export class FlameDatabase {
   async ensureQueryIndexes() {
     const queryIndexes = [
       [this.posts, { createdAt: -1, id: -1 }],
+      [this.users, { lastActiveAt: -1, joinedAt: -1 }],
       [this.users, { "state.privacy.discoverable": 1, "state.user.onboardingCompleted": 1, lastActiveAt: -1, joinedAt: -1 }]
     ];
 
@@ -1269,6 +1274,7 @@ export class FlameDatabase {
       [this.users, { id: 1 }, { unique: true }],
       [this.users, { lastActiveAt: -1 }],
       [this.users, { joinedAt: -1 }],
+      [this.users, { lastActiveAt: -1, joinedAt: -1 }],
       [this.users, { "state.privacy.discoverable": 1 }],
       [this.users, { "state.privacy.discoverable": 1, "state.user.onboardingCompleted": 1, lastActiveAt: -1, joinedAt: -1 }],
       [this.sessions, { token: 1 }, { unique: true }],
@@ -1478,6 +1484,7 @@ export class FlameDatabase {
       })
       .project(PUBLIC_USER_PROJECTION)
       .sort({ lastActiveAt: -1, joinedAt: -1 })
+      .hint({ lastActiveAt: -1, joinedAt: -1 })
       .allowDiskUse(true)
       .limit(safeLimit)
       .toArray();
