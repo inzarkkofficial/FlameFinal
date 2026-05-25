@@ -30,6 +30,19 @@
   --flame-border: rgba(255, 255, 255, 0.1);
   --flame-muted: #b7a3aa;
   --flame-text: #fff7f7;
+  --background: var(--flame-bg);
+  --foreground: var(--flame-text);
+  --card-background: var(--flame-surface);
+  --card: var(--card-background);
+  --card-foreground: var(--flame-text);
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: var(--flame-muted);
+  --border-color: var(--flame-border);
+  --border: var(--border-color);
+  --accent-primary: var(--flame-primary);
+  --primary: var(--accent-primary);
+  --primary-foreground: #fff7f7;
+  --surface-highlight: rgba(255, 255, 255, 0.045);
   --theme-background: var(--flame-bg);
   --theme-surface: var(--flame-surface);
   --theme-card: var(--flame-surface-solid);
@@ -71,6 +84,9 @@
   --flame-border: rgba(94, 42, 44, 0.14);
   --flame-muted: #866b6c;
   --flame-text: #2b1518;
+  --muted: rgba(43, 21, 24, 0.055);
+  --primary-foreground: #fff7f7;
+  --surface-highlight: rgba(255, 63, 104, 0.045);
   --theme-background: var(--flame-bg);
   --theme-surface: var(--flame-surface);
   --theme-card: var(--flame-surface-solid);
@@ -103,8 +119,8 @@ body,
 }
 
 body {
-  background: var(--flame-body-bg);
-  color: var(--flame-text);
+  background: var(--background);
+  color: var(--foreground);
   font-family: var(--flame-font-body);
   overflow-x: hidden;
   touch-action: manipulation;
@@ -114,14 +130,14 @@ body {
 }
 
 .flame-app {
-  --bg: var(--flame-bg);
+  --bg: var(--background);
   --bg-2: var(--flame-bg-2);
-  --card: var(--flame-surface);
+  --card: var(--card-background);
   --card-solid: var(--flame-surface-solid);
-  --border: var(--flame-border);
-  --muted: var(--flame-muted);
-  --fg: var(--flame-text);
-  --primary: var(--flame-primary);
+  --border: var(--border-color);
+  --muted: var(--muted-foreground);
+  --fg: var(--foreground);
+  --primary: var(--accent-primary);
   --primary-2: var(--flame-primary-2);
   --primary-deep: var(--flame-primary-deep);
   --primary-soft: var(--flame-primary-soft);
@@ -19621,4 +19637,177 @@ body {
   .flame-app.app-mode :where(.nav-badge, .conversation-typing i, .room-waveform i) {
     animation: none !important;
   }
+}
+
+/* Semantic theme coverage and network-state presentation. */
+.flame-app.app-mode :where(
+  .feed-post,
+  .feed-composer,
+  .home-community-composer,
+  .home-side-card,
+  .messages-list-pane,
+  .messages-preview-panel,
+  .conversation-rail,
+  .chat,
+  .room-list-card,
+  .rooms-right-panel > section,
+  .room-create-panel,
+  .room-stage-full,
+  .profile-panel:not(.profile-hero-panel),
+  .settings-panel,
+  .settings-dashboard-head,
+  .settings-user-panel,
+  .drawer,
+  .profile-viewer-card,
+  .load-failure-state
+) {
+  color: var(--card-foreground) !important;
+  background:
+    linear-gradient(145deg, var(--surface-highlight), transparent 58%),
+    var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode :where(
+  input:not([type="range"]),
+  textarea,
+  select,
+  .discover-search,
+  .chat-input,
+  .conversation-search,
+  .post-share-panel,
+  .feed-owner-menu,
+  .message-menu,
+  .reaction-picker
+) {
+  color: var(--foreground) !important;
+  background-color: var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode :where(
+  .feed-meta,
+  .feed-stats,
+  .empty-state p,
+  .home-side-empty,
+  .home-activity-row small,
+  .follow-row small,
+  .messages-preview-head p,
+  .messages-preview-last small,
+  .rooms-right-panel p,
+  .rooms-right-panel small,
+  .profile-about-copy,
+  .profile-insight-item small,
+  .settings-panel small,
+  .settings-device-state small,
+  .discover-search input::placeholder,
+  input::placeholder,
+  textarea::placeholder
+) {
+  color: var(--muted-foreground) !important;
+}
+
+.flame-app.app-mode :where(button:disabled, input:disabled, textarea:disabled, select:disabled) {
+  color: var(--muted-foreground) !important;
+  opacity: 0.62;
+}
+
+.flame-app .discover-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100% - 32px, 520px);
+  min-height: 46px;
+  margin: 0 auto 14px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.flame-app .discover-search svg {
+  flex: 0 0 auto;
+  width: 18px;
+  color: var(--muted);
+}
+
+.flame-app .discover-search input {
+  width: 100%;
+  border: 0 !important;
+  padding: 12px 0;
+  outline: 0;
+  background: transparent !important;
+}
+
+.flame-app .discover-search:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.flame-app .discover-skeleton-card {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  background: var(--card);
+}
+
+.flame-app .discover-skeleton-media {
+  display: block;
+  height: 64%;
+  background: var(--muted);
+}
+
+.flame-app .discover-skeleton-copy {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.flame-app .discover-skeleton-copy > div {
+  display: flex;
+  gap: 8px;
+}
+
+.flame-app .discover-skeleton-media,
+.flame-app .discover-skeleton-copy :where(.skeleton-line, .skeleton-pill) {
+  animation: skeleton-shimmer 1.25s ease-in-out infinite;
+}
+
+.flame-app .load-failure-state .cta {
+  margin-top: 18px;
+}
+
+.flame-app .data-refresh-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--foreground);
+  background: var(--primary-soft);
+  font-size: 13px;
+}
+
+.flame-app .data-refresh-notice button {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 13px;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-weight: 700;
+}
+
+.flame-app .discover-refresh-notice {
+  width: min(100% - 32px, 520px);
+  margin: 0 auto 12px;
+}
+
+.flame-app .refresh-profiles-btn:disabled {
+  cursor: wait;
 }

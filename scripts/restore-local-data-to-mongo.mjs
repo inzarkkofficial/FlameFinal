@@ -285,6 +285,7 @@ async function ensureIndexes(db) {
     ["posts", { authorId: 1 }],
     ["posts", { tags: 1 }],
     ["posts", { createdAt: -1 }],
+    ["posts", { createdAt: -1, id: -1 }],
     ["supportTickets", { userId: 1 }],
     ["supportTickets", { createdAt: -1 }]
   ];

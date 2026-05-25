@@ -412,6 +412,11 @@ export default function FlameApp() {
     state,
     hydrated,
     feedLoading,
+    feedStatus,
+    feedError,
+    discoverLoading,
+    discoverStatus,
+    discoverError,
     typingByProfile,
     login,
     signup,
@@ -771,6 +776,9 @@ export default function FlameApp() {
               <HomeScreen
                 state={state}
                 feedLoading={feedLoading}
+                feedStatus={feedStatus}
+                feedError={feedError}
+                onRetryFeed={refreshHomeFeed}
                 onMenu={() => setMenuOpen(true)}
                 onNotif={openNotifications}
                 hasNotifications={hasUnreadActivity}
@@ -835,6 +843,9 @@ export default function FlameApp() {
             {tab === "discover" && (
               <Discover
                 state={state}
+                loading={discoverLoading}
+                status={discoverStatus}
+                error={discoverError}
                 boostActive={boostActive}
                 boostSeconds={boostSeconds}
                 onBoost={activateBoost}
@@ -1659,6 +1670,9 @@ function parsePostTags(value) {
 function HomeScreen({
   state,
   feedLoading = false,
+  feedStatus = "idle",
+  feedError = "",
+  onRetryFeed,
   onMenu,
   onNotif,
   hasNotifications,
@@ -1692,8 +1706,6 @@ function HomeScreen({
   const [mood, setMood] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [reactionBurst, setReactionBurst] = useState("");
-  const [feedReady, setFeedReady] = useState(false);
-  const [feedWaitExpired, setFeedWaitExpired] = useState(false);
   const [postMenuOpen, setPostMenuOpen] = useState("");
   const [editingPostId, setEditingPostId] = useState("");
   const [editPostText, setEditPostText] = useState("");
@@ -1729,22 +1741,6 @@ function HomeScreen({
     }
     return visibleFeed;
   }, [feedMode, visibleFeed]);
-
-  useEffect(() => {
-    const id = window.setTimeout(() => setFeedReady(true), 320);
-    return () => window.clearTimeout(id);
-  }, []);
-
-  useEffect(() => {
-    if (!feedLoading || feed.length > 0) {
-      setFeedWaitExpired(false);
-      return undefined;
-    }
-
-    setFeedWaitExpired(false);
-    const id = window.setTimeout(() => setFeedWaitExpired(true), 1600);
-    return () => window.clearTimeout(id);
-  }, [feed.length, feedLoading]);
 
   const openUserProfile = (summary) => {
     const profile = profileForSummary(summary, state);
@@ -2166,17 +2162,31 @@ function HomeScreen({
             </nav>
           </section>
           <div className="feed-list">
-        {!feedReady || (feedLoading && feed.length === 0 && !feedWaitExpired) ? (
+        {feedStatus === "error" && feed.length > 0 && (
+          <div className="data-refresh-notice" role="alert">
+            <span>{feedError || "Could not refresh posts."}</span>
+            <button type="button" onClick={onRetryFeed}>Retry</button>
+          </div>
+        )}
+        {(feedStatus === "idle" || feedLoading) && feed.length === 0 ? (
           Array.from({ length: 3 }).map((_, index) => (
             <div className="feed-slide" key={`feed-skeleton-${index}`}>
               <FeedSkeleton />
             </div>
           ))
+        ) : feedStatus === "error" && feed.length === 0 ? (
+          <div className="feed-slide feed-empty-slide">
+            <LoadFailureState
+              title="Could not load your feed"
+              subtitle={feedError || "Check your connection and try again."}
+              onRetry={onRetryFeed}
+            />
+          </div>
         ) : presentedFeed.length === 0 ? (
           <div className="feed-slide feed-empty-slide">
             <EmptyState
-              title={feedLoading ? "Loading latest posts" : searchQuery ? "No posts found" : feedMode === "media" ? "No media posts yet" : "No posts yet"}
-              subtitle={feedLoading ? "Your feed will appear here shortly." : searchQuery ? "Try another search or browse the full feed." : feedMode === "media" ? "Switch back to Latest or share the first photo or video." : "Post a message, photo, or video to start the home feed."}
+              title={searchQuery ? "No posts found" : feedMode === "media" ? "No media posts yet" : "No posts yet"}
+              subtitle={searchQuery ? "Try another search or browse the full feed." : feedMode === "media" ? "Switch back to Latest or share the first photo or video." : "Post a message, photo, or video to start the home feed."}
             />
             <button type="button" className="cta compact empty-post-btn" onClick={() => setComposerOpen(true)}>
               Create post
@@ -2631,7 +2641,7 @@ function HomeScreen({
         <HomeDesktopAside
           state={state}
           feed={feed}
-          loading={!feedReady}
+          loading={feedLoading && feed.length === 0}
           onOpenProfile={openUserProfile}
           onCreatePost={() => {
             setComposerOpen(true);
@@ -2836,21 +2846,48 @@ function FeedSkeleton() {
   );
 }
 
-function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, hasNotifications, onRefresh, onSwipe, onPop }) {
+function DiscoverSkeleton() {
+  return (
+    <div className="discover-skeleton-card" aria-hidden="true">
+      <span className="discover-skeleton-media" />
+      <div className="discover-skeleton-copy">
+        <span className="skeleton-line short" />
+        <span className="skeleton-line medium" />
+        <span className="skeleton-line wide" />
+        <div>
+          <span className="skeleton-pill" />
+          <span className="skeleton-pill narrow" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Discover({ state, loading = false, status = "idle", error = "", boostActive, boostSeconds, onBoost, onMenu, onNotif, hasNotifications, onRefresh, onSwipe, onPop }) {
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState("discover");
+  const [query, setQuery] = useState("");
   const [history, setHistory] = useState([]);
   const [forced, setForced] = useState(null);
   const [viewingProfile, setViewingProfile] = useState(null);
 
   const deck = useMemo(() => {
-    const matched = new Set(state.matches.map((match) => match.profileId));
+    const normalizedQuery = query.trim().toLowerCase();
     const pool =
       mode === "nearby"
         ? state.profiles.filter((profile) => profile.online || parseFloat(profile.distance) <= 3.2)
         : state.profiles;
-    return pool.filter((profile) => !matched.has(profile.id));
-  }, [mode, state.matches, state.profiles]);
+    return pool.filter((profile) => {
+      if (profile.id === state.auth?.id) return false;
+      if (!normalizedQuery) return true;
+      return [
+        profile.name,
+        profile.bio,
+        profile.distance,
+        ...(profile.interests || [])
+      ].some((value) => String(value || "").toLowerCase().includes(normalizedQuery));
+    });
+  }, [mode, query, state.auth?.id, state.profiles]);
 
   useEffect(() => {
     setIndex(0);
@@ -2943,14 +2980,40 @@ function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, 
           <LightningIcon />
           <span>{boostActive ? `${boostSeconds}s` : "Boost"}</span>
         </button>
-        <button className="refresh-profiles-btn" type="button" onClick={onRefresh} aria-label="Refresh people">
-          Refresh
+        <button className="refresh-profiles-btn" type="button" onClick={onRefresh} disabled={loading} aria-label="Refresh people">
+          {loading ? "Loading" : "Refresh"}
         </button>
       </div>
 
+      <label className="discover-search">
+        <SearchIcon />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search name, bio, or interest"
+          aria-label="Search people"
+        />
+      </label>
+
+      {status === "error" && state.profiles.length > 0 && (
+        <div className="data-refresh-notice discover-refresh-notice" role="alert">
+          <span>{error || "Could not refresh people."}</span>
+          <button type="button" onClick={onRefresh}>Retry</button>
+        </div>
+      )}
+
       <div className={`card-wrap ${boostActive ? "boosted" : ""} ${visible.length === 0 ? "empty" : ""}`}>
-        {visible.length === 0 ? (
-          <EmptyState title="No new profiles available" subtitle="Refresh to check for newly discoverable people." />
+        {(status === "idle" || loading) && state.profiles.length === 0 ? (
+          <DiscoverSkeleton />
+        ) : status === "error" && state.profiles.length === 0 ? (
+          <LoadFailureState
+            title="Could not load people"
+            subtitle={error || "Check your connection and try again."}
+            onRetry={onRefresh}
+          />
+        ) : visible.length === 0 ? (
+          <EmptyState title="No users found" subtitle={query ? "Try a different search." : "No discoverable people are available right now."} />
         ) : (
           <AnimatePresence>
             {visible.map((profile, position) => {
@@ -8020,6 +8083,19 @@ function EmptyState({ title, subtitle }) {
       <img src={LOGO_SRC} alt="" />
       <h3>{title}</h3>
       <p>{subtitle}</p>
+    </div>
+  );
+}
+
+function LoadFailureState({ title, subtitle, onRetry }) {
+  return (
+    <div className="empty-state load-failure-state" role="alert">
+      <img src={LOGO_SRC} alt="" />
+      <h3>{title}</h3>
+      <p>{subtitle}</p>
+      <button type="button" className="cta compact" onClick={onRetry}>
+        Retry
+      </button>
     </div>
   );
 }

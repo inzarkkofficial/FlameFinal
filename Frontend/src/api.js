@@ -1,9 +1,7 @@
 import { io } from "socket.io-client";
 
-const PRODUCTION_API_URL = "https://flamefinal.onrender.com/api";
-const browserHost = globalThis.location?.hostname || "";
-const defaultApiUrl = browserHost.endsWith("vercel.app") ? PRODUCTION_API_URL : "/api";
-const API_URL = (import.meta.env.VITE_API_URL || defaultApiUrl).replace(/\/+$/, "");
+const configuredApiUrl = String(import.meta.env.VITE_API_URL || "").trim();
+const API_URL = (configuredApiUrl || "/api").replace(/\/+$/, "");
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   (API_URL.startsWith("http") ? API_URL.replace(/\/api\/?$/, "") : undefined);
@@ -15,6 +13,10 @@ const GET_CACHE_TTL_MS = 4500;
 let realtimeSocket;
 const getResponseCache = new Map();
 const inFlightGetRequests = new Map();
+
+export function invalidateApiCache() {
+  getResponseCache.clear();
+}
 
 function readStorage(storage, key = TOKEN_KEY) {
   try {
@@ -236,9 +238,19 @@ export async function api(path, options = {}) {
       }
 
       const contentType = response.headers.get("content-type") || "";
+      const responseText = contentType.includes("application/json")
+        ? ""
+        : await response.text().catch(() => "");
       const payload = contentType.includes("application/json")
         ? await response.json().catch(() => ({}))
         : {};
+      const serviceSuspended = /service suspended/i.test(responseText);
+
+      if (serviceSuspended) {
+        const error = new Error("The Flame API service is unavailable right now. Please try again after the server is active.");
+        error.status = response.status;
+        throw error;
+      }
 
       if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < retryDelays.length) {
         await wakeBackend();
@@ -258,6 +270,8 @@ export async function api(path, options = {}) {
 
       if (canUseGetCache) {
         getResponseCache.set(cacheKey, { at: Date.now(), payload });
+      } else if (!["GET", "HEAD"].includes(method)) {
+        invalidateApiCache();
       }
       return payload;
     }

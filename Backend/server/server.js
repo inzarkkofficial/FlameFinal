@@ -32,7 +32,24 @@ loadEnvFile();
 
 const PORT = Number(process.env.PORT || 4000);
 const CLIENT_DIST = resolve(process.env.CLIENT_DIST || join(PROJECT_ROOT, "Frontend", "dist"));
-const CORS_ORIGIN = process.env.CORS_ORIGIN || `http://localhost:${PORT}`;
+const configuredClientOrigins = [
+  process.env.CORS_ORIGINS,
+  process.env.CORS_ORIGIN,
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL
+]
+  .filter(Boolean)
+  .flatMap((value) => String(value).split(","))
+  .map((value) => value.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+const allowedClientOrigins = new Set([
+  `http://localhost:${PORT}`,
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "https://flamedating.vercel.app",
+  "https://flame-project.vercel.app",
+  ...configuredClientOrigins
+]);
 const db = new FlameDatabase();
 let io;
 let dbReady = false;
@@ -87,9 +104,9 @@ const POST_ROUTE_ALIASES = new Map([
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
-  "Access-Control-Allow-Origin": CORS_ORIGIN,
   "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type,Authorization"
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  "Vary": "Origin"
 };
 
 const mime = {
@@ -104,8 +121,19 @@ const mime = {
   ".json": "application/json; charset=utf-8"
 };
 
+function allowedOriginForRequest(req) {
+  const origin = String(req.headers.origin || "").replace(/\/+$/, "");
+  return allowedClientOrigins.has(origin) ? origin : "";
+}
+
+function responseJsonHeaders(res) {
+  return res.flameCorsOrigin
+    ? { ...jsonHeaders, "Access-Control-Allow-Origin": res.flameCorsOrigin }
+    : jsonHeaders;
+}
+
 function sendJson(res, status, payload) {
-  res.writeHead(status, jsonHeaders);
+  res.writeHead(status, responseJsonHeaders(res));
   res.end(JSON.stringify(payload));
 }
 
@@ -1065,7 +1093,7 @@ async function markActivityEventsRead(user) {
 
 async function handleApi(req, res, url) {
   if (req.method === "OPTIONS") {
-    res.writeHead(204, jsonHeaders);
+    res.writeHead(204, responseJsonHeaders(res));
     res.end();
     return;
   }
@@ -1133,7 +1161,8 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === "/api/feed" && req.method === "GET") {
-    sendJson(res, 200, { ok: true, feed: await db.publicFeed(user.id) });
+    const requestedLimit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit")) || 40));
+    sendJson(res, 200, { ok: true, feed: await db.publicFeed(user.id, { limit: requestedLimit }) });
     return;
   }
 
@@ -1489,10 +1518,10 @@ export async function ensureDatabaseReady() {
 
 export async function handleRequest(req, res, options = {}) {
   try {
-    if (options.initializeDatabase) await ensureDatabaseReady();
-
+    res.flameCorsOrigin = allowedOriginForRequest(req);
     const url = new URL(req.url, `http://${req.headers.host}`);
     const pathname = normalizeRoutePath(url.pathname);
+    if (options.initializeDatabase && req.method !== "OPTIONS") await ensureDatabaseReady();
     if (pathname.startsWith("/api/")) {
       url.pathname = pathname;
       await handleApi(req, res, url);
@@ -1518,7 +1547,10 @@ function setupRealtime() {
   io = new SocketIOServer(server, {
     maxHttpBufferSize: 25_000_000,
     cors: {
-      origin: CORS_ORIGIN,
+      origin(origin, callback) {
+        const normalizedOrigin = String(origin || "").replace(/\/+$/, "");
+        callback(null, !normalizedOrigin || allowedClientOrigins.has(normalizedOrigin));
+      },
       methods: ["GET", "POST"]
     }
   });

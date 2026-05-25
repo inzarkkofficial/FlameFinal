@@ -5,6 +5,7 @@ import {
   disconnectRealtime,
   editRealtimeMessage,
   getToken,
+  invalidateApiCache,
   joinRealtimeRoom,
   jsonBody,
   markRealtimeConversationRead,
@@ -563,10 +564,17 @@ export function useFlameStore() {
   const [state, setState] = useState(initialState);
   const [hydrated, setHydrated] = useState(() => !getToken());
   const [feedLoading, setFeedLoading] = useState(false);
+  const [feedStatus, setFeedStatus] = useState("idle");
+  const [feedError, setFeedError] = useState("");
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverStatus, setDiscoverStatus] = useState("idle");
+  const [discoverError, setDiscoverError] = useState("");
   const [lastError, setLastError] = useState("");
   const [typingByProfile, setTypingByProfile] = useState({});
   const postReactionQueue = useRef(new Map());
   const feedRefreshTimer = useRef(null);
+  const feedRequestSequence = useRef(0);
+  const discoverRequestSequence = useRef(0);
 
   const withPendingPostReactions = useCallback((nextState) => {
     const queue = postReactionQueue.current;
@@ -645,21 +653,37 @@ export function useFlameStore() {
   );
 
   const fetchFeed = useCallback(async (options = {}) => {
+    const requestId = feedRequestSequence.current + 1;
+    feedRequestSequence.current = requestId;
     setFeedLoading(true);
+    setFeedStatus("loading");
+    setFeedError("");
     try {
       const result = await request("/feed", {
         method: "GET",
         ...(options.force ? { cache: "reload" } : {}),
         ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
       });
-      if (result.feed) applyFeed(result.feed);
+      if (requestId !== feedRequestSequence.current) return result;
+      if (result.ok && Array.isArray(result.feed)) {
+        applyFeed(result.feed);
+        setFeedStatus("success");
+      } else {
+        setFeedStatus("error");
+        setFeedError(result.error || "Could not load posts. Please try again.");
+      }
       return result;
     } finally {
-      setFeedLoading(false);
+      if (requestId === feedRequestSequence.current) setFeedLoading(false);
     }
   }, [applyFeed, request]);
 
   const refreshDiscover = useCallback(async (options = {}) => {
+    const requestId = discoverRequestSequence.current + 1;
+    discoverRequestSequence.current = requestId;
+    setDiscoverLoading(true);
+    setDiscoverStatus("loading");
+    setDiscoverError("");
     const result = await request(
       "/discover?limit=500",
       {
@@ -669,20 +693,35 @@ export function useFlameStore() {
       },
       { skipStateApply: true }
     );
-    if (result.ok && result.profiles) {
+    if (requestId !== discoverRequestSequence.current) return result;
+    if (result.ok && Array.isArray(result.profiles)) {
       applyDiscoverProfiles(result.profiles);
+      setDiscoverStatus("success");
+      setDiscoverLoading(false);
       return result;
     }
 
-    // Keep discovery usable while an older backend revision is still serving production.
-    const fallback = await request("/session", {
-      method: "GET",
-      cache: "reload",
-      ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
-    });
-    const fallbackProfiles = fallback.state?.profiles || [];
-    if (fallback.ok) applyDiscoverProfiles(fallbackProfiles);
-    return fallback.ok ? { ...fallback, profiles: fallbackProfiles } : result;
+    if (result.status === 404) {
+      // Compatibility only for a backend revision that predates /discover.
+      const fallback = await request("/session", {
+        method: "GET",
+        cache: "reload",
+        ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
+      });
+      const fallbackProfiles = fallback.state?.profiles || [];
+      if (requestId !== discoverRequestSequence.current) return fallback;
+      if (fallback.ok) {
+        applyDiscoverProfiles(fallbackProfiles);
+        setDiscoverStatus("success");
+        setDiscoverLoading(false);
+        return { ...fallback, profiles: fallbackProfiles };
+      }
+    }
+
+    setDiscoverStatus("error");
+    setDiscoverError(result.error || "Could not load people. Please try again.");
+    setDiscoverLoading(false);
+    return result;
   }, [applyDiscoverProfiles, request]);
 
   useEffect(() => {
@@ -779,7 +818,8 @@ export function useFlameStore() {
       if (feedRefreshTimer.current) window.clearTimeout(feedRefreshTimer.current);
       feedRefreshTimer.current = window.setTimeout(() => {
         feedRefreshTimer.current = null;
-        fetchFeed({ quick: true });
+        invalidateApiCache();
+        fetchFeed({ quick: true, force: true });
       }, 350);
     };
     const handleReceiveMessage = ({ profileId, message }) => {
@@ -875,15 +915,14 @@ export function useFlameStore() {
           retryDelays: QUICK_RETRY_DELAYS_MS
         });
         setToken(result.token);
-        if (result.state) applyServerState(result.state);
-        window.setTimeout(() => {
-          request("/session", { method: "GET" });
-          fetchFeed();
-          refreshDiscover();
-          request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((roomsResult) => {
-            if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
-          });
-        }, 0);
+        if (result.state) applyServerState({ ...result.state, feed: [], profiles: [] });
+        invalidateApiCache();
+        fetchFeed({ force: true });
+        refreshDiscover();
+        request("/session", { method: "GET", cache: "reload" });
+        request("/group-rooms", { method: "GET", cache: "reload" }, { skipStateApply: true }).then((roomsResult) => {
+          if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
+        });
         return { ok: true, ...result };
       } catch (error) {
         const message = error.message || offlineError(error);
@@ -903,14 +942,14 @@ export function useFlameStore() {
       });
       if (result.ok) {
         setToken(result.token);
-        window.setTimeout(() => {
-          request("/session", { method: "GET" });
-          fetchFeed();
-          refreshDiscover();
-          request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((roomsResult) => {
-            if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
-          });
-        }, 0);
+        if (result.state) applyServerState({ ...result.state, feed: [], profiles: [] });
+        invalidateApiCache();
+        fetchFeed({ force: true });
+        refreshDiscover();
+        request("/session", { method: "GET", cache: "reload" });
+        request("/group-rooms", { method: "GET", cache: "reload" }, { skipStateApply: true }).then((roomsResult) => {
+          if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
+        });
       }
       return result;
     },
@@ -921,9 +960,19 @@ export function useFlameStore() {
     await request("/auth/logout", { method: "POST", body: jsonBody() });
     disconnectRealtime();
     setToken("");
+    currentProfiles = [];
+    profileCache.clear();
+    feedRequestSequence.current += 1;
+    discoverRequestSequence.current += 1;
+    setFeedLoading(false);
+    setFeedStatus("idle");
+    setFeedError("");
+    setDiscoverLoading(false);
+    setDiscoverStatus("idle");
+    setDiscoverError("");
     setState((current) => ({
-      ...current,
-      auth: { ...current.auth, isAuthenticated: false }
+      ...fallbackState,
+      light: current.light
     }));
   }, [request]);
 
@@ -1701,6 +1750,11 @@ export function useFlameStore() {
     state,
     hydrated,
     feedLoading,
+    feedStatus,
+    feedError,
+    discoverLoading,
+    discoverStatus,
+    discoverError,
     lastError,
     typingByProfile,
     login,

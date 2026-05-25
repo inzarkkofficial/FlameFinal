@@ -1241,6 +1241,7 @@ export class FlameDatabase {
       [this.posts, { authorId: 1 }],
       [this.posts, { tags: 1 }],
       [this.posts, { createdAt: -1 }],
+      [this.posts, { createdAt: -1, id: -1 }],
       [this.groupRooms, { id: 1 }, { unique: true }],
       [this.groupRooms, { creatorId: 1 }],
       [this.groupRooms, { updatedAt: -1 }],
@@ -1443,12 +1444,10 @@ export class FlameDatabase {
       .limit(safeLimit)
       .toArray();
     const activeUserIds = await this.activeUserIds();
-    const matchedIds = new Set(normalizedCurrent.state.matches.map((match) => match.profileId));
     const blockedIds = new Set(normalizedCurrent.state.blockedIds || []);
 
     const realProfiles = users
       .map((user) => normalizeUser(user))
-      .filter((user) => !matchedIds.has(user.id))
       .filter((user) => !blockedIds.has(user.id))
       .filter((user) => !(user.state.blockedIds || []).includes(normalizedCurrent.id))
       .map((user) => publicProfile(user, activeUserIds, normalizedCurrent.id));
@@ -1456,12 +1455,13 @@ export class FlameDatabase {
     return realProfiles;
   }
 
-  async publicFeed(viewerId) {
+  async publicFeed(viewerId, { limit = 40 } = {}) {
+    const safeLimit = Math.max(1, Math.min(60, Number(limit) || 40));
     const posts = await this.posts
       .find({})
       .project({ _id: 0 })
-      .sort({ createdAt: -1 })
-      .limit(12)
+      .sort({ createdAt: -1, id: -1 })
+      .limit(safeLimit)
       .toArray();
     const authorIds = new Set();
 

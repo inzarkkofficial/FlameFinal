@@ -32,6 +32,31 @@ npm run build
 npm start       # Serves the API and the built Frontend/dist app on http://localhost:4000
 ```
 
+## Deployment Configuration
+
+The Vercel frontend calls the Render API through environment variables, rather than a URL embedded in the source code.
+
+Set these values in Vercel for Production and Preview:
+
+```env
+VITE_API_URL=https://your-render-service.onrender.com/api
+VITE_SOCKET_URL=https://your-render-service.onrender.com
+```
+
+Set these values in Render:
+
+```env
+FLAME_DATASTORE=mongo
+MONGODB_URI=mongodb+srv://...
+MONGODB_DB=flame
+CORS_ORIGINS=https://flamedating.vercel.app,https://your-preview-domain.vercel.app
+FRONTEND_URL=https://flamedating.vercel.app
+```
+
+`JWT_SECRET` is not required by the current backend because authentication uses opaque, random session tokens stored in MongoDB. Cloudinary variables are not required until media storage is moved away from bounded inline persistence.
+
+The Render service must remain active for Feed, Discover, messages, and realtime features to load on the deployed Vercel site.
+
 ## Backend
 
 The backend uses Node's built-in HTTP and crypto modules, Socket.IO realtime events, and MongoDB persistence.
