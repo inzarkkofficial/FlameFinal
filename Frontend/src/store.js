@@ -868,9 +868,9 @@ export function useFlameStore() {
   }, [request]);
 
   const setLight = useCallback(
-    () => {
-      setState((current) => ({ ...current, light: false }));
-      request("/theme", { method: "PATCH", body: jsonBody({ light: false }) });
+    (light) => {
+      setState((current) => ({ ...current, light }));
+      request("/theme", { method: "PATCH", body: jsonBody({ light }) });
     },
     [request]
   );

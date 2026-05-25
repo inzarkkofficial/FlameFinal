@@ -1,55 +1,69 @@
 import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState } from "react";
 
 export const THEME_STORAGE_KEY = "flame-theme";
-const DARK_THEME = "dark";
+const THEMES = new Set(["light", "dark"]);
 
 function canUseDOM() {
   return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
 export function getStoredThemePreference() {
-  return DARK_THEME;
+  if (!canUseDOM()) return "";
+  try {
+    const value = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return THEMES.has(value) ? value : "";
+  } catch {
+    return "";
+  }
 }
 
 export function hasStoredThemePreference() {
-  return true;
+  return Boolean(getStoredThemePreference());
+}
+
+function systemTheme() {
+  if (!canUseDOM() || !window.matchMedia) return "dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 export function resolvePreferredTheme() {
-  return DARK_THEME;
+  return getStoredThemePreference() || systemTheme();
 }
 
-export function applyThemeToDocument() {
+export function applyThemeToDocument(theme) {
   if (!canUseDOM()) return;
-  document.documentElement.dataset.theme = DARK_THEME;
-  document.documentElement.style.colorScheme = DARK_THEME;
+  const safeTheme = THEMES.has(theme) ? theme : "dark";
+  document.documentElement.dataset.theme = safeTheme;
+  document.documentElement.style.colorScheme = safeTheme;
 }
 
-applyThemeToDocument();
+applyThemeToDocument(resolvePreferredTheme());
 
 const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState(DARK_THEME);
+  const [theme, setThemeState] = useState(resolvePreferredTheme);
 
   useLayoutEffect(() => {
-    applyThemeToDocument();
-    if (canUseDOM()) {
-      try {
-        window.localStorage.setItem(THEME_STORAGE_KEY, DARK_THEME);
-      } catch {
-        // Theme persistence should never block the UI.
-      }
-    }
+    applyThemeToDocument(theme);
   }, [theme]);
 
-  const setTheme = useCallback((_nextTheme, options = {}) => {
+  useLayoutEffect(() => {
+    if (!canUseDOM() || !window.matchMedia || hasStoredThemePreference()) return undefined;
+    const media = window.matchMedia("(prefers-color-scheme: light)");
+    const handleChange = () => setThemeState(media.matches ? "light" : "dark");
+    media.addEventListener?.("change", handleChange);
+    return () => media.removeEventListener?.("change", handleChange);
+  }, []);
+
+  const setTheme = useCallback((nextTheme, options = {}) => {
+    const safeTheme = THEMES.has(nextTheme) ? nextTheme : "dark";
     const persist = options.persist !== false;
-    setThemeState(DARK_THEME);
-    applyThemeToDocument();
+    setThemeState(safeTheme);
+    applyThemeToDocument(safeTheme);
     if (persist && canUseDOM()) {
       try {
-        window.localStorage.setItem(THEME_STORAGE_KEY, DARK_THEME);
+        window.localStorage.setItem(THEME_STORAGE_KEY, safeTheme);
       } catch {
         // Theme persistence should never block the UI.
       }
@@ -57,27 +71,28 @@ export function ThemeProvider({ children }) {
   }, []);
 
   const setLight = useCallback(
-    (_nextLight, options) => {
-      setTheme(DARK_THEME, options);
+    (nextLight, options) => {
+      setTheme(nextLight ? "light" : "dark", options);
     },
     [setTheme]
   );
 
   const toggleTheme = useCallback(() => {
-    setTheme(DARK_THEME);
-  }, [setTheme]);
+    setTheme(theme === "light" ? "dark" : "light");
+  }, [setTheme, theme]);
 
   const syncFromServer = useCallback(
-    (_serverLight) => {
-      setTheme(DARK_THEME, { persist: false });
+    (serverLight) => {
+      if (hasStoredThemePreference()) return;
+      setLight(Boolean(serverLight), { persist: false });
     },
-    [setTheme]
+    [setLight]
   );
 
   const value = useMemo(
     () => ({
-      theme: DARK_THEME,
-      light: false,
+      theme,
+      light: theme === "light",
       setTheme,
       setLight,
       toggleTheme,

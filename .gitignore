@@ -7,9 +7,4 @@ Backend/server/*.log
 *.log
 .vercel/
 tools/*.exe
-tools/*.zip
-tools/android-sdk/
-tools/jdk*/
-tools/jdk/
-tools/temurin-jdk/
 .env

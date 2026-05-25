@@ -181,92 +181,6 @@ const COMMON_LOCATIONS = [
   "Dasmarinas, Cavite",
   "San Francisco, CA"
 ];
-const PRESENTATION_PROFILES = [
-  {
-    id: "demo-maya-santos",
-    name: "Maya",
-    age: 22,
-    image: "/demo-maya.jpg",
-    online: true,
-    lastActiveAt: Date.now() - 2 * 60_000,
-    distance: "Quezon City",
-    likesYou: true,
-    bio: "Cafe hopping, study playlists, and spontaneous weekend plans.",
-    prompt: "Signed up and ready to connect.",
-    interests: ["Coffee", "Music", "Travel", "Photography"],
-    details: [
-      { label: "Location", value: "Quezon City, Philippines" },
-      { label: "Zodiac", value: "Aries" },
-      { label: "Work", value: "Student creator" },
-      { label: "School", value: "University of the Philippines" },
-      { label: "Looking for", value: "Interested in Everyone" }
-    ],
-    presentationOnly: true
-  },
-  {
-    id: "demo-anton-reyes",
-    name: "Anton",
-    age: 24,
-    image: "/demo-anton.jpg",
-    online: true,
-    lastActiveAt: Date.now() - 8 * 60_000,
-    distance: "Makati",
-    likesYou: false,
-    bio: "Gym after work, ramen nights, and always down for a good movie.",
-    prompt: "Signed up and ready to connect.",
-    interests: ["Fitness", "Movies", "Food", "Gaming"],
-    details: [
-      { label: "Location", value: "Makati, Philippines" },
-      { label: "Zodiac", value: "Virgo" },
-      { label: "Work", value: "Junior designer" },
-      { label: "School", value: "Mapua University" },
-      { label: "Looking for", value: "Interested in Women" }
-    ],
-    presentationOnly: true
-  },
-  {
-    id: "demo-sophia-cruz",
-    name: "Sophia",
-    age: 23,
-    image: "/demo-sophia.jpg",
-    online: false,
-    lastActiveAt: Date.now() - 16 * 60_000,
-    distance: "Taguig",
-    likesYou: true,
-    bio: "Loves books, city walks, and playlists that feel like sunset.",
-    prompt: "Signed up and ready to connect.",
-    interests: ["Books", "Music", "Fashion", "Travel"],
-    details: [
-      { label: "Location", value: "Taguig, Philippines" },
-      { label: "Zodiac", value: "Aquarius" },
-      { label: "Work", value: "Marketing assistant" },
-      { label: "School", value: "De La Salle University" },
-      { label: "Looking for", value: "Interested in Men" }
-    ],
-    presentationOnly: true
-  },
-  {
-    id: "demo-jessica-lim",
-    name: "Jessica",
-    age: 25,
-    image: "/demo-jessica.jpg",
-    online: false,
-    lastActiveAt: Date.now() - 31 * 60_000,
-    distance: "Manila",
-    likesYou: false,
-    bio: "Trying every dessert spot in the city and taking too many photos.",
-    prompt: "Signed up and ready to connect.",
-    interests: ["Food", "Photography", "Movies", "Anime"],
-    details: [
-      { label: "Location", value: "Manila, Philippines" },
-      { label: "Zodiac", value: "Cancer" },
-      { label: "Work", value: "Content strategist" },
-      { label: "School", value: "UST" },
-      { label: "Looking for", value: "Interested in Everyone" }
-    ],
-    presentationOnly: true
-  }
-];
 
 function cleanLocationSuggestion(value) {
   const location = String(value || "").trim().replace(/\s+/g, " ");
@@ -569,9 +483,8 @@ export default function FlameApp() {
 
   useLayoutEffect(() => {
     if (!hydrated) return;
-    syncThemeFromServer(false);
-    if (state.light) setServerLight(false);
-  }, [hydrated, setServerLight, state.light, syncThemeFromServer]);
+    syncThemeFromServer(Boolean(state.light));
+  }, [hydrated, state.light, syncThemeFromServer]);
 
   useEffect(() => {
     return () => {
@@ -593,9 +506,9 @@ export default function FlameApp() {
   }, []);
 
   const setAppLight = useCallback(
-    () => {
-      setLocalLight(false);
-      setServerLight(false);
+    (nextLight) => {
+      setLocalLight(Boolean(nextLight));
+      setServerLight(Boolean(nextLight));
     },
     [setLocalLight, setServerLight]
   );
@@ -826,31 +739,6 @@ export default function FlameApp() {
                 onMenu={() => setMenuOpen(true)}
                 onNotif={openNotifications}
                 hasNotifications={hasUnreadActivity}
-                onCreateStory={async (story) => {
-                  const result = await createStory(story);
-                  showToast(result.ok ? "Story shared for 24 hours" : result.error);
-                  return result;
-                }}
-                onDeleteStory={async (storyId) => {
-                  const result = await deleteStory(storyId);
-                  showToast(result.ok ? "Story removed" : result.error);
-                  return result;
-                }}
-                onReactStory={async (profileId, storyId, reaction) => {
-                  const result = await reactToStory(profileId, storyId, reaction);
-                  if (!result.ok) showToast(result.error);
-                  return result;
-                }}
-                onViewStory={async (profileId, storyId) => {
-                  const result = await viewStory(profileId, storyId);
-                  if (!result.ok) showToast(result.error);
-                  return result;
-                }}
-                onReplyStory={async (profileId, storyId, text) => {
-                  const result = await replyToStory(profileId, storyId, text);
-                  showToast(result.ok ? "Reply sent" : result.error);
-                  return result;
-                }}
                 onCreatePost={async (content) => {
                   const result = await createPost(content);
                   showToast(result.ok ? "Post shared" : result.error);
@@ -973,7 +861,6 @@ export default function FlameApp() {
                 onOpenChat={openChatWith}
                 onArchiveConversation={archiveConversation}
                 onDeleteConversation={deleteConversation}
-                onFindMatches={() => navigateTo("discover")}
                 onCreateStory={async (story) => {
                   const result = await createStory(story);
                   showToast(result.ok ? "Story shared for 24 hours" : result.error);
@@ -1008,8 +895,6 @@ export default function FlameApp() {
               <ProfileScreen
                 matchCount={state.matches.length}
                 likedCount={state.likedIds.length}
-                messageCount={state.matches.reduce((total, match) => total + (Array.isArray(match.messages) ? match.messages.length : 0), 0)}
-                profileViews={state.stories.reduce((total, story) => total + Number(story.viewCount || 0), 0)}
                 user={state.user}
                 posts={state.feed}
                 onEditProfile={() => navigateTo("edit-profile")}
@@ -1019,6 +904,7 @@ export default function FlameApp() {
 
             {tab === "settings" && (
               <SettingsScreen
+                light={light}
                 setLight={setAppLight}
                 user={state.user}
                 privacy={state.privacy}
@@ -1208,80 +1094,45 @@ export default function FlameApp() {
             exit={{ x: "-105%" }}
             transition={{ type: "spring", damping: 28, stiffness: 280 }}
           >
-            <div className="drawer-head menu-drawer-head">
+            <div className="drawer-head">
               <div className="drawer-brand">
                 <img src={LOGO_SRC} alt="" />
                 <div>
                   <b>Flame</b>
-                  <span>Find better matches 💗</span>
+                  <span>Find better matches</span>
                 </div>
               </div>
-              <button className="icon-btn round drawer-close-btn" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
-                <XIcon />
+              <button className="icon-btn round" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
+                x
               </button>
             </div>
-
-            <button
-              type="button"
-              className="drawer-user"
-              onClick={() => {
-                navigateTo("profile");
-                setMenuOpen(false);
-              }}
-            >
-              <span className="drawer-user-avatar">
-                <img src={state.user.image || LOGO_SRC} alt="" />
-                <i aria-hidden="true" />
-              </span>
-              <span className="drawer-user-copy">
-                <b>{state.user.fullName || "Flame user"}</b>
-                <span>{state.user.location || "Nearby"}</span>
-              </span>
-              <ChevronIcon />
-            </button>
-
-            <div className="drawer-section-title">Navigation</div>
-            {[
-              { id: "home", label: "Home Feed", subtitle: "Latest posts", icon: <HomeIcon /> },
-              { id: "discover", label: "Discover", subtitle: "Meet someone new", icon: <HeartIcon /> },
-              {
-                id: "messages",
-                label: "Messages",
-                subtitle: "Chats and replies",
-                icon: <MessageIcon />,
-                badge: state.matches.filter((m) => !m.archivedAt && !m.deletedAt && m.messages.length === 0).length
-              },
-              { id: "matches", label: "Match History", subtitle: "Your connections", icon: <RoomsIcon /> },
-              { id: "settings", label: "Settings", subtitle: "Account controls", icon: <SettingsIcon /> }
-            ].map((item) => (
+            <div className="drawer-user">
+              <img src={state.user.image} alt="" />
+              <div>
+                <b>{state.user.fullName}</b>
+                <span>{state.user.location}</span>
+              </div>
+            </div>
+            {["home", "discover", "messages", "matches", "profile"].map((item) => (
               <button
-                key={item.id}
-                className={`drawer-link menu-nav-link ${tab === item.id ? "active" : ""}`}
+                key={item}
+                className="drawer-link"
                 onClick={() => {
-                  navigateTo(item.id);
+                  navigateTo(item);
                   setMenuOpen(false);
                 }}
               >
-                <span className="drawer-link-icon" aria-hidden="true">{item.icon}</span>
-                <span className="drawer-link-copy">
-                  <b>{item.label}</b>
-                  <small>{item.subtitle}</small>
-                </span>
-                {item.badge ? <em>{item.badge}</em> : null}
-                <ChevronIcon />
+                {item === "profile"
+                  ? "Settings"
+                  : item === "matches"
+                    ? "Match History"
+                    : item === "home"
+                      ? "Home Feed"
+                    : item.charAt(0).toUpperCase() + item.slice(1)}
               </button>
             ))}
-
-            <div className="drawer-section-title upgrade-title">Upgrade</div>
-            <button className="drawer-link accent-link drawer-upgrade-card" onClick={activateBoost}>
-              <span className="drawer-upgrade-icon" aria-hidden="true">
-                <CrownIcon />
-              </span>
-              <span className="drawer-link-copy">
-                <b>Upgrade Spotlight ✨</b>
-                <small>Unlock premium features and get more matches.</small>
-              </span>
-              <ChevronIcon />
+            <button className="drawer-link accent-link" onClick={activateBoost}>
+              Upgrade Spotlight
             </button>
           </motion.aside>
         )}
@@ -1752,11 +1603,6 @@ function HomeScreen({
   onMenu,
   onNotif,
   hasNotifications,
-  onCreateStory,
-  onDeleteStory,
-  onReactStory,
-  onViewStory,
-  onReplyStory,
   onCreatePost,
   onReactPost,
   onUpdatePost,
@@ -2037,16 +1883,6 @@ function HomeScreen({
         </div>
       </header>
 
-      <HomeStoryStrip
-        state={state}
-        onOpenProfile={openUserProfile}
-        onCreateStory={onCreateStory}
-        onDeleteStory={onDeleteStory}
-        onReactStory={onReactStory}
-        onViewStory={onViewStory}
-        onReplyStory={onReplyStory}
-      />
-
       <AnimatePresence>
         {searchOpen && (
           <motion.div
@@ -2265,21 +2101,9 @@ function HomeScreen({
                   >
                     <img src={post.author.image} alt="" loading="lazy" />
                   </button>
-                  <div className="feed-author-meta">
-                    <span className="feed-author-name">
-                      <b>{post.author.name}</b>
-                      {post.author.verified && (
-                        <i className="feed-verified" aria-label="Verified profile">
-                          <StarIcon />
-                        </i>
-                      )}
-                    </span>
-                    <span className="feed-post-context">
-                      <time>{relativeTime(post.createdAt)}</time>
-                      <i aria-hidden="true">•</i>
-                      <GlobeIcon />
-                      <em>Public</em>
-                    </span>
+                  <div>
+                    <b>{post.author.name}</b>
+                    <span>{relativeTime(post.createdAt)}</span>
                   </div>
                   {post.canManage && (
                     <div className="feed-owner-actions">
@@ -2346,17 +2170,10 @@ function HomeScreen({
                         ))}
                       </span>
                     )}
-                    {reactionEntries.length === 0 && <SmileIcon />}
                     {totalReactions} {totalReactions === 1 ? "reaction" : "reactions"}
                   </span>
-                  <span>
-                    <MessageIcon />
-                    {post.commentCount} comments
-                  </span>
-                  <span>
-                    <ForwardIcon />
-                    {post.shareCount} shares
-                  </span>
+                  <span>{post.commentCount} comments</span>
+                  <span>{post.shareCount} shares</span>
                 </div>
 
                 {reactors.length > 0 && (
@@ -2729,154 +2546,6 @@ function HomeScreen({
         )}
       </AnimatePresence>
     </section>
-  );
-}
-
-function HomeStoryStrip({
-  state,
-  onOpenProfile,
-  onCreateStory,
-  onDeleteStory,
-  onReactStory,
-  onViewStory,
-  onReplyStory
-}) {
-  const [storyComposerOpen, setStoryComposerOpen] = useState(false);
-  const [viewingStory, setViewingStory] = useState(null);
-  const [storyClock, setStoryClock] = useState(Date.now());
-
-  useEffect(() => {
-    const id = window.setInterval(() => setStoryClock(Date.now()), 30000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const storyItems = useMemo(() => {
-    const ownStory = activeStoryFrom(state.stories, storyClock);
-    const profileMap = new Map();
-
-    for (const match of state.matches || []) {
-      if (match.archivedAt || match.deletedAt || match.blockedAt) continue;
-      const profile = profileForMatch(match);
-      if (profile?.id) profileMap.set(profile.id, profile);
-    }
-
-    for (const profile of state.profiles || []) {
-      if (!profile?.id || profileMap.has(profile.id)) continue;
-      profileMap.set(profile.id, profile);
-    }
-
-    const people = Array.from(profileMap.values())
-      .filter(Boolean)
-      .map((profile) => ({
-        id: profile.id,
-        name: profile.name || profile.fullName || "Flame user",
-        img: profile.image || LOGO_SRC,
-        add: false,
-        online: Boolean(profile.online),
-        story: activeStoryFrom(profile.activeStory, storyClock),
-        profile: normalizeViewerProfile(profile)
-      }))
-      .sort((a, b) => Number(Boolean(b.story)) - Number(Boolean(a.story)) || Number(b.online) - Number(a.online))
-      .slice(0, 12);
-
-    return [
-      {
-        id: "me",
-        name: "Your story",
-        img: state.user.image || LOGO_SRC,
-        add: true,
-        online: false,
-        story: ownStory,
-        profile: normalizeViewerProfile({ ...state.user, id: state.auth?.id })
-      },
-      ...people
-    ];
-  }, [state.auth?.id, state.matches, state.profiles, state.stories, state.user, storyClock]);
-
-  useEffect(() => {
-    setViewingStory((current) => {
-      if (!current?.story) return current;
-      if (current.id === "me") {
-        const story = activeStoryFrom(state.stories, storyClock);
-        return story?.id === current.story.id ? { ...current, story } : current;
-      }
-
-      const profile =
-        (state.profiles || []).find((item) => item.id === current.id) ||
-        (state.matches || []).map(profileForMatch).find((item) => item?.id === current.id);
-      const story = activeStoryFrom(profile?.activeStory, storyClock);
-      return story?.id === current.story.id ? { ...current, story } : current;
-    });
-  }, [state.matches, state.profiles, state.stories, storyClock]);
-
-  const openStoryItem = (item) => {
-    if (item.story) {
-      primeStoryMusic(item.story);
-      setViewingStory(item);
-      if (!item.add) onViewStory?.(item.id, item.story.id);
-      return;
-    }
-
-    if (item.add) {
-      setStoryComposerOpen(true);
-      return;
-    }
-
-    onOpenProfile?.(item.profile);
-  };
-
-  return (
-    <>
-      <div className="home-story-strip" aria-label="Stories">
-        {storyItems.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={`home-story-item story ${item.story ? "has-story" : ""} ${item.online ? "is-online" : ""}`}
-            onClick={() => openStoryItem(item)}
-            aria-label={item.story ? `View ${item.name}` : item.add ? "Add your story" : `View ${item.name}'s profile`}
-          >
-            <span className={`home-story-ring ring ${item.add && !item.story ? "add" : ""} ${item.story ? "active" : ""}`}>
-              {item.add && !item.story ? <PlusIcon /> : <img src={item.img} alt="" loading="lazy" />}
-            </span>
-            {item.add && <i className="story-add-badge" aria-hidden="true">+</i>}
-            {item.online && <i className="online" aria-hidden="true" />}
-            <span>{item.name}</span>
-          </button>
-        ))}
-      </div>
-
-      <AnimatePresence>
-        {storyComposerOpen && (
-          <StoryComposer
-            user={state.user}
-            onClose={() => setStoryComposerOpen(false)}
-            onSubmit={onCreateStory}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {viewingStory?.story && (
-          <StoryViewer
-            item={viewingStory}
-            own={viewingStory.add}
-            onClose={() => setViewingStory(null)}
-            onCreateAnother={() => {
-              setViewingStory(null);
-              setStoryComposerOpen(true);
-            }}
-            onReact={(reaction) => onReactStory?.(viewingStory.id, viewingStory.story.id, reaction)}
-            onReply={(text) => onReplyStory?.(viewingStory.id, viewingStory.story.id, text)}
-            onDelete={async () => {
-              const result = await onDeleteStory?.(viewingStory.story.id);
-              if (result?.ok) setViewingStory(null);
-              return result;
-            }}
-          />
-        )}
-      </AnimatePresence>
-    </>
   );
 }
 
@@ -3357,7 +3026,6 @@ function MessagesScreen({
   onOpenChat,
   onArchiveConversation,
   onDeleteConversation,
-  onFindMatches,
   onCreateStory,
   onDeleteStory,
   onReactStory,
@@ -3366,15 +3034,12 @@ function MessagesScreen({
 }) {
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState("");
-  const [messageFilter, setMessageFilter] = useState("all");
-  const [showMessageFilters, setShowMessageFilters] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
   const [openConversationMenu, setOpenConversationMenu] = useState("");
   const [viewingProfile, setViewingProfile] = useState(null);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [viewingStory, setViewingStory] = useState(null);
   const [storyClock, setStoryClock] = useState(Date.now());
-  const searchInputRef = useRef(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setStoryClock(Date.now()), 30000);
@@ -3407,7 +3072,7 @@ function MessagesScreen({
       return [
         {
           id: "me",
-          name: "Your story",
+          name: "You",
           img: state.user.image,
           profile: normalizeViewerProfile({ ...state.user, id: state.auth?.id }),
           add: true,
@@ -3439,18 +3104,6 @@ function MessagesScreen({
   const activeMatches = state.matches.filter((match) => !match.archivedAt && !match.deletedAt);
   const archivedMatches = state.matches.filter((match) => match.archivedAt && !match.deletedAt);
   const sourceMatches = showArchived ? archivedMatches : activeMatches;
-  const unreadCount = activeMatches.filter((match) => match.messages.length === 0).length;
-  const messageFilterOptions = useMemo(
-    () => [
-      { id: "all", label: "All" },
-      { id: "primary", label: "Primary" },
-      { id: "unread", label: "Unread" },
-      { id: "favourites", label: "Favourites" },
-      { id: "groups", label: "Groups" }
-    ],
-    []
-  );
-  const activeFilterLabel = messageFilterOptions.find((item) => item.id === messageFilter)?.label || "All";
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sourceMatches
@@ -3459,15 +3112,11 @@ function MessagesScreen({
         return profile ? { match, profile, last: match.messages[match.messages.length - 1] } : null;
       })
       .filter(Boolean)
-      .filter(({ match }) => {
-        if (messageFilter === "unread") return match.messages.length === 0;
-        return true;
-      })
       .filter(({ profile, last }) => {
         if (!q) return true;
-        return profile.name.toLowerCase().includes(q) || String(last?.text || "").toLowerCase().includes(q);
+        return profile.name.toLowerCase().includes(q) || last?.text.toLowerCase().includes(q);
       });
-  }, [messageFilter, query, sourceMatches]);
+  }, [query, sourceMatches]);
 
   const archiveConversation = async (profileId, archived) => {
     setOpenConversationMenu("");
@@ -3480,54 +3129,73 @@ function MessagesScreen({
     await onDeleteConversation?.(profileId);
   };
 
-  const openStory = (story) => {
-    if (story.story) {
-      primeStoryMusic(story.story);
-      setViewingStory(story);
-      if (!story.add) onViewStory?.(story.id, story.story.id);
-      return;
-    }
-
-    if (story.add) setStoryComposerOpen(true);
-    else onOpenChat?.(story.id);
-  };
-
   return (
-    <section className="screen messages-screen" aria-label="Messages">
-      <MessagesHeader
-        searchActive={showSearch || Boolean(query)}
-        filtersOpen={showMessageFilters}
-        onSearch={() => {
-          setShowSearch(true);
-          window.requestAnimationFrame(() => searchInputRef.current?.focus());
-        }}
-        onToggleFilters={() => setShowMessageFilters((value) => !value)}
-      />
+    <section className="screen" aria-label="Messages">
+      <header className="topbar">
+        <h1 className="page-title">Messages</h1>
+        <button
+          className={`icon-btn round ${showSearch ? "active" : ""}`}
+          aria-label="Search messages"
+          onClick={() => {
+            setShowSearch((value) => !value);
+            if (showSearch) setQuery("");
+          }}
+        >
+          <SearchIcon />
+        </button>
+      </header>
 
-      <MessagesSearchPanel
-        inputRef={searchInputRef}
-        query={query}
-        filterLabel={activeFilterLabel}
-        onQueryChange={setQuery}
-        onFocus={() => setShowSearch(true)}
-        onFilter={() => setShowMessageFilters((value) => !value)}
-      />
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            className="search-row"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+          >
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or message" />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <MessagesControls
-        unreadCount={unreadCount}
-        activeFilter={messageFilter}
-        activeFilterLabel={activeFilterLabel}
-        filtersOpen={showMessageFilters}
-        options={messageFilterOptions}
-        onSelectFilter={setMessageFilter}
-      />
+      <div className="stories">
+        {storyItems.map((story) => (
+          <button
+            key={story.id}
+            className={`story ${story.story ? "has-story" : ""} ${story.online ? "is-online" : ""}`}
+            type="button"
+            onClick={() => {
+              if (story.story) {
+                primeStoryMusic(story.story);
+                setViewingStory(story);
+                if (!story.add) onViewStory?.(story.id, story.story.id);
+                return;
+              }
+              if (story.add) setStoryComposerOpen(true);
+              else onOpenChat?.(story.id);
+            }}
+            aria-label={
+              story.story
+                ? `View ${story.name}'s story`
+                : story.add
+                  ? "Add story"
+                  : `Message ${story.name}`
+            }
+          >
+            <div className={`ring ${story.add && !story.story ? "add" : ""} ${story.story ? "active" : ""}`}>
+              {story.add && !story.story ? "+" : <img src={story.img} alt="" />}
+            </div>
+            {story.add && story.story && <i className="story-add-badge">+</i>}
+            <span>{story.name}</span>
+            {story.online && <i className="online" />}
+          </button>
+        ))}
+      </div>
 
-      <MessageStoryRail stories={storyItems} onOpenStory={openStory} onFindMatches={onFindMatches} />
-
-      <div className="section-label messages-section-head">
-        <span>{showArchived ? "ARCHIVED" : "YOUR MATCHES"}</span>
+      <div className="section-label">
+        <span>{showArchived ? "Archived" : "Your matches"}</span>
         <button type="button" className="text-toggle" onClick={() => setShowArchived((value) => !value)}>
-          {showArchived ? `${activeMatches.length} ACTIVE` : `${archivedMatches.length} ARCHIVED`}
+          {showArchived ? `${activeMatches.length} active` : `${archivedMatches.length} archived`}
         </button>
       </div>
 
@@ -3539,25 +3207,61 @@ function MessagesScreen({
           subtitle={query ? "Try a different name or message." : showArchived ? "Archived chats will show here." : "Open archived or start a new chat."}
         />
       ) : (
-        <ul className="chat-list messages-match-list">
+        <ul className="chat-list">
           {matches.map(({ match, profile, last }) => {
             const unread = match.messages.length === 0;
             const hasStory = storyProfileIds.has(profile.id);
             return (
-              <MessageMatchCard
-                key={match.profileId}
-                match={match}
-                profile={profile}
-                last={last}
-                unread={unread}
-                hasStory={hasStory}
-                menuOpen={openConversationMenu === match.profileId}
-                onOpen={() => onOpenChat(profile.id)}
-                onOpenProfile={() => setViewingProfile(normalizeViewerProfile(profile))}
-                onToggleMenu={() => setOpenConversationMenu((current) => (current === match.profileId ? "" : match.profileId))}
-                onArchive={() => archiveConversation(profile.id, !match.archivedAt)}
-                onDelete={() => deleteConversation(profile.id, profile.name)}
-              />
+              <li key={match.profileId} className="conversation-item">
+                <button className="chat" onClick={() => onOpenChat(profile.id)} aria-label={`Open chat with ${profile.name}`}>
+                  <span
+                    className={`profile-avatar-frame ${hasStory ? "has-story" : ""} ${profile.online ? "online" : ""}`}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setViewingProfile(normalizeViewerProfile(profile));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setViewingProfile(normalizeViewerProfile(profile));
+                    }}
+                  >
+                    <img src={profile.image} alt="" loading="lazy" />
+                    {profile.online && <i className="online-dot" aria-hidden="true" />}
+                  </span>
+                  <div>
+                    <div className="r1">
+                      <b>{profile.name}</b>
+                      <span>{relativeTime(last?.ts ?? match.matchedAt)}</span>
+                    </div>
+                    <div className={`r2 ${last ? "" : "muted"}`}>
+                      {last ? <span>{last.from === "me" ? "You: " : ""}{last.text}</span> : <em>Say hi</em>}
+                      {unread && <span className="badge-pill">New</span>}
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="conversation-menu-btn"
+                  onClick={() => setOpenConversationMenu((current) => (current === match.profileId ? "" : match.profileId))}
+                  aria-label={`Conversation options for ${profile.name}`}
+                >
+                  <MoreIcon />
+                </button>
+                {openConversationMenu === match.profileId && (
+                  <div className="conversation-menu">
+                    <button type="button" onClick={() => archiveConversation(profile.id, !match.archivedAt)}>
+                      {match.archivedAt ? "Unarchive" : "Archive"}
+                    </button>
+                    <button type="button" onClick={() => deleteConversation(profile.id, profile.name)}>
+                      Delete conversation
+                    </button>
+                  </div>
+                )}
+              </li>
             );
           })}
         </ul>
@@ -3606,207 +3310,6 @@ function MessagesScreen({
         )}
       </AnimatePresence>
     </section>
-  );
-}
-
-function MessagesHeader({ searchActive, filtersOpen, onSearch, onToggleFilters }) {
-  return (
-    <header className="topbar messages-topbar">
-      <div className="messages-brand" aria-label="Flame messages">
-        <img src={LOGO_SRC} alt="" />
-        <span>
-          <b>Flame</b>
-          <small>MESSAGES</small>
-        </span>
-      </div>
-      <div className="messages-header-actions">
-        <button
-          className={`icon-btn round messages-icon-btn messages-search-btn ${searchActive ? "active" : ""}`}
-          type="button"
-          aria-label="Search messages"
-          onClick={onSearch}
-        >
-          <SearchIcon />
-        </button>
-        <button
-          className={`icon-btn round messages-icon-btn messages-filter-btn ${filtersOpen ? "active" : ""}`}
-          type="button"
-          aria-label="Filter messages"
-          onClick={onToggleFilters}
-        >
-          <FilterIcon />
-        </button>
-      </div>
-    </header>
-  );
-}
-
-function MessagesSearchPanel({ inputRef, query, filterLabel, onQueryChange, onFocus, onFilter }) {
-  return (
-    <div className="search-row messages-search-row" role="search">
-      <SearchIcon />
-      <input
-        ref={inputRef}
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        onFocus={onFocus}
-        placeholder="Search by name or message"
-        aria-label="Search by name or message"
-      />
-      <button type="button" onClick={onFilter} aria-label={`Filter messages by ${filterLabel}`}>
-        <FilterIcon />
-      </button>
-    </div>
-  );
-}
-
-function MessagesControls({
-  unreadCount,
-  activeFilter,
-  activeFilterLabel,
-  filtersOpen,
-  options,
-  onSelectFilter
-}) {
-  return (
-    <section className="messages-controls" aria-label="Message filters">
-      <div className="messages-controls-head">
-        <h2>
-          <span>All Messages</span>
-          <b>{unreadCount}</b>
-        </h2>
-        <button
-          type="button"
-          className="messages-filter-dropdown"
-          onClick={() => onSelectFilter(activeFilter === "unread" ? "all" : "unread")}
-        >
-          <span>{activeFilter === "all" ? "Unread" : activeFilterLabel}</span>
-          <ChevronIcon />
-        </button>
-      </div>
-
-      {filtersOpen && (
-        <div className="messages-chip-row">
-          {options.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={activeFilter === option.id ? "active" : ""}
-              onClick={() => onSelectFilter(option.id)}
-              aria-pressed={activeFilter === option.id}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function MessageStoryRail({ stories, onOpenStory, onFindMatches }) {
-  return (
-    <div className="stories messages-story-row" aria-label="Stories and matches">
-      {stories.map((story) => (
-        <MessageStoryButton key={story.id} story={story} onOpen={() => onOpenStory(story)} />
-      ))}
-      <button type="button" className="story message-find-matches" onClick={onFindMatches} aria-label="Find matches">
-        <div className="ring add">
-          <RoomsIcon />
-        </div>
-        <span>Find matches</span>
-      </button>
-    </div>
-  );
-}
-
-function MessageStoryButton({ story, onOpen }) {
-  return (
-    <button
-      className={`story message-story-item ${story.add ? "is-own" : ""} ${story.story ? "has-story" : ""} ${story.online ? "is-online" : ""}`}
-      type="button"
-      onClick={onOpen}
-      aria-label={
-        story.story
-          ? `View ${story.name}'s story`
-          : story.add
-            ? "Add story"
-            : `Message ${story.name}`
-      }
-    >
-      <div className={`ring ${story.story ? "active" : ""}`}>
-        <img src={story.img || LOGO_SRC} alt="" loading="lazy" />
-      </div>
-      {story.add && <i className="story-add-badge" aria-hidden="true">+</i>}
-      <span>{story.name}</span>
-      {story.online && <i className="online" aria-hidden="true" />}
-    </button>
-  );
-}
-
-function MessageMatchCard({
-  match,
-  profile,
-  last,
-  unread,
-  hasStory,
-  menuOpen,
-  onOpen,
-  onOpenProfile,
-  onToggleMenu,
-  onArchive,
-  onDelete
-}) {
-  const fallback = last?.type === "image" ? "Photo" : last?.type === "video" ? "Video" : "Message";
-  const preview = last ? `${last.from === "me" ? "You: " : ""}${last.text || fallback}` : "Say hi";
-
-  return (
-    <li className={`conversation-item message-match-item ${unread ? "is-unread" : ""}`}>
-      <article className="message-match-card">
-        <div className="message-match-top">
-          <button
-            type="button"
-            className={`profile-avatar-frame message-match-avatar ${hasStory ? "has-story" : ""} ${profile.online ? "online" : ""}`}
-            onClick={onOpenProfile}
-            aria-label={`View ${profile.name}'s profile`}
-          >
-            <img src={profile.image || LOGO_SRC} alt="" loading="lazy" />
-            {profile.online && <i className="online-dot" aria-hidden="true" />}
-          </button>
-
-          <button type="button" className="message-match-copy" onClick={onOpen} aria-label={`Open chat with ${profile.name}`}>
-            <span className="message-match-title">
-              <b>{profile.name}</b>
-              {unread && <em>New</em>}
-            </span>
-            <span className={`message-match-preview ${last ? "" : "muted"}`}>{preview}</span>
-          </button>
-
-          <div className="message-match-meta">
-            <time>{relativeTime(last?.ts ?? match.matchedAt)}</time>
-            <button type="button" className="conversation-menu-btn" onClick={onToggleMenu} aria-label={`Conversation options for ${profile.name}`}>
-              <MoreIcon />
-            </button>
-          </div>
-        </div>
-
-        <button type="button" className="message-card-cta" onClick={onOpen}>
-          <MessageIcon />
-          <span>Message</span>
-        </button>
-
-        {menuOpen && (
-          <div className="conversation-menu">
-            <button type="button" onClick={onArchive}>
-              {match.archivedAt ? "Unarchive" : "Archive"}
-            </button>
-            <button type="button" onClick={onDelete}>
-              Delete conversation
-            </button>
-          </div>
-        )}
-      </article>
-    </li>
   );
 }
 
@@ -4614,37 +4117,106 @@ function SynthStoryMusicPlayer({ music, storyId }) {
 
 function MatchHistory({ state, posts = [], onOpenChat }) {
   const [viewing, setViewing] = useState(null);
+  const onlineMatches = useMemo(
+    () => state.matches.filter((match) => profileForMatch(match)?.online),
+    [state.matches]
+  );
   const sortedMatches = useMemo(
     () => [...state.matches].sort((a, b) => b.matchedAt - a.matchedAt),
     [state.matches]
   );
-  const unreadMatches = sortedMatches.filter((match) => match.messages.length === 0).length;
-  const onlineMatches = sortedMatches.filter((match) => profileForMatch(match)?.online).length;
 
   return (
-    <section className="screen matches-screen" aria-label="Match history">
-      <MatchesHero total={state.matches.length} unread={unreadMatches} online={onlineMatches} />
+    <section className="screen" aria-label="Match history">
+      <header className="topbar">
+        <h1 className="page-title">Matches</h1>
+        <span className="badge-pill" aria-label={`${state.matches.length} matches`}>
+          {state.matches.length}
+        </span>
+      </header>
 
       {state.matches.length === 0 ? (
         <EmptyState title="No matches yet" subtitle="Keep swiping. When someone likes you back, they will show up here." />
       ) : (
         <>
-          <MatchesSectionHeader unread={unreadMatches} />
+          {onlineMatches.length > 0 && (
+            <div className="match-top-row">
+              <div className="section-label">
+                <span>New matches</span>
+                <span className="accent">{onlineMatches.length} online</span>
+              </div>
+              <div className="match-new-row">
+                {onlineMatches.map((match) => {
+                  const profile = profileForMatch(match);
+                  if (!profile) return null;
+                  return (
+                    <button
+                      key={match.profileId}
+                      className="new-match-card"
+                      onClick={() => setViewing(profile)}
+                      aria-label={`View ${profile.name}'s profile`}
+                    >
+                      <span className={`profile-avatar-frame ${activeStoryFrom(profile.activeStory) ? "has-story" : ""} ${profile.online ? "online" : ""}`}>
+                        <img src={profile.image} alt={profile.name} loading="lazy" />
+                        {profile.online && <i className="online-dot" aria-hidden="true" />}
+                      </span>
+                      <div className="new-match-info">
+                        <div>
+                          <b>{profile.name}</b>
+                          <span>{profile.age}</span>
+                        </div>
+                        <span className="online-pill">Online</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-          <ul className="liked-you-list matches-card-list">
+          <div className="section-label">
+            <span>People who liked you</span>
+            <span className="accent">Tap to reply</span>
+          </div>
+
+          <ul className="liked-you-list">
             {sortedMatches.map((match) => {
               const profile = profileForMatch(match);
               const last = match.messages[match.messages.length - 1];
               if (!profile) return null;
               return (
-                <LikedMatchCard
-                  key={match.profileId}
-                  match={match}
-                  profile={profile}
-                  last={last}
-                  onOpenChat={() => onOpenChat(profile.id)}
-                  onOpenProfile={() => setViewing(normalizeViewerProfile(profile))}
-                />
+                <li key={match.profileId}>
+                  <button className="liked-you" onClick={() => onOpenChat(profile.id)} aria-label={`Message ${profile.name}`}>
+                    <span
+                      className={`profile-avatar-frame ${activeStoryFrom(profile.activeStory) ? "has-story" : ""} ${profile.online ? "online" : ""}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setViewing(normalizeViewerProfile(profile));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setViewing(normalizeViewerProfile(profile));
+                      }}
+                    >
+                      <img src={profile.image} alt={profile.name} loading="lazy" />
+                      {profile.online && <i className="online-dot" aria-hidden="true" />}
+                    </span>
+                    <div className="liked-meta">
+                      <div className="r1">
+                        <b>{profile.name}</b>
+                        <span>{relativeTime(last?.ts ?? match.matchedAt)}</span>
+                      </div>
+                      <div className="r2">
+                        {last ? <span>{last.from === "me" ? "You: " : ""}{last.text}</span> : <em>Tap to reply</em>}
+                      </div>
+                    </div>
+                    {match.messages.length === 0 && <span className="badge-pill">New</span>}
+                  </button>
+                </li>
               );
             })}
           </ul>
@@ -4666,88 +4238,6 @@ function MatchHistory({ state, posts = [], onOpenChat }) {
         )}
       </AnimatePresence>
     </section>
-  );
-}
-
-function MatchesHero({ total, unread, online }) {
-  const progress = Math.max(8, Math.min(100, total * 16));
-
-  return (
-    <header className="matches-hero">
-      <div className="matches-title-row">
-        <div>
-          <span>Matches</span>
-          <h1>M.</h1>
-        </div>
-        <div className="matches-hero-stats">
-          <b>{total}</b>
-          <small>{online} online</small>
-        </div>
-      </div>
-      <div className="matches-progress-wrap" aria-label={`${total} matches`}>
-        <div className="matches-progress-track">
-          <span style={{ width: `${progress}%` }}>
-            <b>{total}</b>
-          </span>
-        </div>
-        <p>{unread ? `${unread} new likes are waiting for your reply.` : "Keep the spark going with your latest matches."}</p>
-      </div>
-    </header>
-  );
-}
-
-function MatchesSectionHeader({ unread }) {
-  return (
-    <div className="section-label matches-section-head">
-      <span>PEOPLE WHO LIKED YOU</span>
-      <button type="button" className="matches-reply-link">
-        <span>{unread ? `${unread} NEW` : "TAP TO REPLY"}</span>
-        <ChevronIcon />
-      </button>
-    </div>
-  );
-}
-
-function LikedMatchCard({ match, profile, last, onOpenChat, onOpenProfile }) {
-  const unread = match.messages.length === 0;
-  const preview = last ? `${last.from === "me" ? "You: " : ""}${last.text || "Message"}` : "Tap to reply and start a conversation";
-  const hasStory = activeStoryFrom(profile.activeStory);
-
-  return (
-    <li className={`matches-card-item ${unread ? "is-new" : ""}`}>
-      <article className="liked-you match-premium-card">
-        <button
-          type="button"
-          className={`profile-avatar-frame match-card-avatar ${hasStory ? "has-story" : ""} ${profile.online ? "online" : ""}`}
-          onClick={onOpenProfile}
-          aria-label={`View ${profile.name}'s profile`}
-        >
-          <img src={profile.image || LOGO_SRC} alt={profile.name} loading="lazy" />
-          {profile.online && <i className="online-dot" aria-hidden="true" />}
-        </button>
-
-        <button type="button" className="match-card-main" onClick={onOpenChat} aria-label={`Message ${profile.name}`}>
-          <span className="match-card-name-row">
-            <b>{profile.name}</b>
-            {unread && <em>New</em>}
-          </span>
-          <span className={`match-card-preview ${last ? "" : "accent"}`}>{preview}</span>
-          <small>{unread ? "Liked you" : "Recently matched"}</small>
-        </button>
-
-        <div className="match-card-side">
-          <time>{relativeTime(last?.ts ?? match.matchedAt)}</time>
-          <button type="button" className="match-card-chevron" onClick={onOpenChat} aria-label={`Open chat with ${profile.name}`}>
-            <ChevronIcon />
-          </button>
-        </div>
-
-        <button type="button" className="match-reply-btn" onClick={onOpenChat}>
-          <MessageIcon />
-          <span>Reply</span>
-        </button>
-      </article>
-    </li>
   );
 }
 
@@ -6431,16 +5921,7 @@ function GroupRoomsScreen({
   );
 }
 
-function ProfileScreen({
-  matchCount,
-  likedCount,
-  messageCount = 0,
-  profileViews = 0,
-  user,
-  posts = [],
-  onEditProfile,
-  onUpdateProfile
-}) {
+function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile, onUpdateProfile }) {
   const backgroundInput = useRef(null);
   const mediaInput = useRef(null);
   const media = user.media || [];
@@ -6461,18 +5942,6 @@ function ProfileScreen({
       Math.min(media.length, 4) * 5
   );
   const userPosts = posts.filter((post) => post.author?.name === userFirstName || post.author?.id === user.id).slice(0, 3);
-  const completion = Math.max(0, Math.min(100, profileScore));
-  const displayName = user.fullName || "Flame user";
-  const displayAge = Number(user.age) || 18;
-  const displayLocation = user.location || "Nearby";
-  const displayBio = user.bio || "Add a short bio so people know what makes you worth a hello.";
-  const chipItems = [displayLocation, user.zodiacSign, ...personalInterests].filter(Boolean).slice(0, 6);
-  const statCards = [
-    { key: "likes", label: "Likes sent", value: likedCount, icon: <HeartIcon /> },
-    { key: "matches", label: "Matches", value: matchCount, icon: <RoomsIcon /> },
-    { key: "messages", label: "Messages", value: messageCount, icon: <MessageIcon /> },
-    { key: "views", label: "Profile views", value: profileViews, icon: <ActivityIcon /> }
-  ];
 
   const readImage = (file, onReady) => {
     if (!file) return;
@@ -6516,44 +5985,31 @@ function ProfileScreen({
         <section className="profile-hero-panel" style={profileBackgroundStyle(user.background)}>
           <div className="profile-hero-overlay">
             <div className="profile-hero-main">
-              <div className="profile-avatar-stage">
-                <span className="profile-avatar-glow" aria-hidden="true" />
-                <img src={user.image || LOGO_SRC} alt={`${displayName} profile`} />
-                <button type="button" className="profile-avatar-edit" onClick={onEditProfile} aria-label="Edit profile photo and details">
-                  <UserIcon />
-                </button>
-              </div>
-
-              <div className="profile-hero-copy">
-                <span className="profile-kicker">
-                  <UserIcon />
-                  Public profile
-                </span>
+              <img src={user.image || LOGO_SRC} alt="Profile" />
+              <div>
+                <span className="profile-kicker">Public profile</span>
                 <h1>
-                  {displayName}<span>, {displayAge}</span>
-                  <i aria-hidden="true" />
+                  {user.fullName || "Flame user"} <span>, {user.age || 18}</span>
                 </h1>
-                <p>{displayBio}</p>
-                {chipItems.length > 0 && (
-                  <div className="profile-hero-chips" aria-label="Profile interests">
-                    {chipItems.map((item) => (
-                      <span key={item}>{item}</span>
-                    ))}
-                  </div>
-                )}
+                <p>{user.bio || "Add a short bio so people know what makes you worth a hello."}</p>
+                <div className="profile-hero-chips">
+                  {[user.location, user.zodiacSign, user.work, ...personalInterests].filter(Boolean).slice(0, 6).map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="profile-hero-actions">
-              <button type="button" className="profile-action-btn secondary" onClick={onEditProfile}>
+              <button type="button" onClick={onEditProfile}>
                 <UserIcon />
                 <span>Edit details</span>
               </button>
-              <button type="button" className="profile-action-btn primary" onClick={() => backgroundInput.current?.click()}>
+              <button type="button" onClick={() => backgroundInput.current?.click()}>
                 <ImageIcon />
                 <span>Set background</span>
               </button>
               {user.background && (
-                <button type="button" className="profile-action-btn ghost" onClick={() => onUpdateProfile({ background: "" })}>
+                <button type="button" onClick={() => onUpdateProfile({ background: "" })}>
                   <XIcon />
                   <span>Clear</span>
                 </button>
@@ -6566,30 +6022,25 @@ function ProfileScreen({
         <div className="profile-content-grid">
           <section className="profile-panel profile-overview-panel">
             <div className="profile-panel-head">
-              <div>
-                <span>Profile overview</span>
-                <p>You're almost there. Complete your profile to get more matches.</p>
-              </div>
-              <b>{completion}% complete</b>
-            </div>
-            <div
-              className="profile-progress"
-              role="progressbar"
-              aria-label="Profile completion"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow={completion}
-            >
-              <span style={{ width: `${completion}%` }} />
+              <span>Overview</span>
+              <b>{profileScore}% complete</b>
             </div>
             <div className="profile-stat-grid">
-              {statCards.map((stat) => (
-                <span key={stat.key}>
-                  <em aria-hidden="true">{stat.icon}</em>
-                  <b>{stat.value}</b>
-                  <small>{stat.label}</small>
-                </span>
-              ))}
+              <span>
+                <b>{likedCount}</b>
+                <small>Likes sent</small>
+              </span>
+              <span>
+                <b>{matchCount}</b>
+                <small>Matches</small>
+              </span>
+              <span>
+                <b>{media.length}</b>
+                <small>Photos</small>
+              </span>
+            </div>
+            <div className="profile-progress">
+              <span style={{ width: `${profileScore}%` }} />
             </div>
           </section>
 
@@ -6674,6 +6125,7 @@ function ProfileScreen({
 }
 
 function SettingsScreen({
+  light,
   setLight,
   user,
   privacy,
@@ -6683,180 +6135,81 @@ function SettingsScreen({
   onHelp,
   onLogout
 }) {
-  const [notifications, setNotifications] = useState({
-    messages: true,
-    matches: true,
-    push: true,
-    email: false
-  });
-  const interests = Array.isArray(user.interests) ? user.interests.filter(Boolean) : [];
-  const completion = Math.min(
-    100,
-    20 +
-      (user.fullName ? 10 : 0) +
-      (user.image ? 10 : 0) +
-      (user.location ? 8 : 0) +
-      (user.bio ? 16 : 0) +
-      (user.gender ? 8 : 0) +
-      (user.interestedIn ? 8 : 0) +
-      (interests.length ? 8 : 0) +
-      (user.zodiacSign ? 4 : 0) +
-      (user.work || user.school ? 8 : 0) +
-      Math.min(Array.isArray(user.media) ? user.media.length : 0, 4) * 5
-  );
-  const toggleNotification = (key) => {
-    setNotifications((current) => ({ ...current, [key]: !current[key] }));
-  };
-  const displayName = user.fullName || "Flame user";
-  const displayAge = Number(user.age) || 18;
-  const displayBio = user.bio || "Add a short bio so people know what makes you worth a hello.";
+  const [notif, setNotif] = useState(true);
 
   return (
     <section className="screen settings-screen" aria-label="Settings">
-      <div className="settings-lux-shell">
-        <header className="settings-lux-header">
+      <div className="settings-page-shell">
+        <header className="settings-dashboard-head">
           <div>
-            <h1>Settings</h1>
-            <p>Manage your account and app preferences</p>
+            <span>Settings</span>
+            <h1>Account controls</h1>
+            <p>Keep profile editing, privacy, app preferences, and support separate from your public profile.</p>
           </div>
-          <button type="button" className="settings-search-btn" onClick={onHelp} aria-label="Search settings">
-            <SearchIcon />
-          </button>
         </header>
 
-        <section className="settings-profile-card" aria-label="Profile summary">
-          <div className="settings-profile-main">
-            <div className="settings-avatar-wrap">
-              <img src={user.image || LOGO_SRC} alt={`${displayName} profile`} />
-              <span aria-label="Online" />
+        <div className="settings-dashboard-grid">
+          <section className="settings-panel settings-user-panel">
+            <img src={user.image || LOGO_SRC} alt="" />
+            <span>
+              <b>{user.fullName || "Flame user"}</b>
+              <small>{user.location || "Nearby"}</small>
+            </span>
+            <button type="button" onClick={onEditProfile}>Edit profile</button>
+          </section>
+
+          <section className="settings-panel">
+            <div className="settings-panel-title">
+              <span>Account</span>
             </div>
-            <div className="settings-profile-copy">
-              <div className="settings-name-row">
-                <h2>{displayName}</h2>
-                <i aria-hidden="true" />
-              </div>
-              <p>{displayAge} <span>•</span> {user.zodiacSign || "Zodiac hidden"} <span>•</span> {user.location || "Nearby"}</p>
-              <small>{displayBio}</small>
-            </div>
-            <button type="button" className="settings-edit-profile-btn" onClick={onEditProfile}>
-              <UserIcon />
-              <span>Edit profile</span>
+            <button className="settings-row" type="button" onClick={onEditProfile}>
+              <span>Edit profile details</span>
+              <b>Open</b>
             </button>
-          </div>
-          <div className="settings-completion-card">
-            <div>
-              <span>Profile completion</span>
-              <b>{completion}% complete</b>
+            <button className="settings-row" type="button" onClick={onPrivacy}>
+              <span>Privacy settings</span>
+              <b>{privacy.incognito ? "Incognito" : "Review"}</b>
+            </button>
+          </section>
+
+          <section className="settings-panel">
+            <div className="settings-panel-title">
+              <span>Preferences</span>
             </div>
-            <div
-              className="settings-completion-track"
-              role="progressbar"
-              aria-label="Profile completion"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              aria-valuenow={completion}
-            >
-              <span style={{ width: `${completion}%` }} />
+            <button className="settings-row" type="button" onClick={() => setNotif(!notif)} aria-pressed={notif}>
+              <span>Notifications</span>
+              <span className={`toggle ${notif ? "on" : ""}`} />
+            </button>
+            <button className="settings-row" type="button" onClick={() => setLight(!light)} aria-pressed={light}>
+              <span>{light ? "Light mode" : "Dark mode"}</span>
+              <span className={`toggle ${light ? "on" : ""}`} />
+            </button>
+            <button className="settings-row" type="button" onClick={onPrivacy} aria-pressed={privacy.incognito}>
+              <span>Incognito</span>
+              <span className={`toggle ${privacy.incognito ? "on" : ""}`} />
+            </button>
+          </section>
+
+          <section className="settings-panel">
+            <div className="settings-panel-title">
+              <span>Support</span>
             </div>
-            <p>You're almost there. Complete your profile to get more matches.</p>
-          </div>
-        </section>
-
-        <div className="settings-section-stack">
-          <SettingsSection title="Account" icon={<UserIcon />}>
-            <SettingsTile icon={<UserIcon />} title="Edit profile" subtitle="Update your photos, bio and details" onClick={onEditProfile} />
-            <SettingsTile icon={<DetailIcon type="pin" />} title="Privacy settings" subtitle="Control who can see your profile" onClick={onPrivacy} />
-            <SettingsTile icon={<StarIcon />} title="Verification" subtitle="Verify your identity" badge="Verified" onClick={onHelp} />
-            <SettingsTile icon={<BlockIcon />} title="Blocked users" subtitle="Manage blocked accounts" onClick={onPrivacy} />
-            <SettingsTile icon={<RoomsIcon />} title="Connected accounts" subtitle="Manage your social accounts" onClick={onHelp} />
-          </SettingsSection>
-
-          <SettingsSection title="Preferences" icon={<SettingsIcon />}>
-            <SettingsTile icon={<UserIcon />} title="Gender preferences" subtitle="Who can see your profile" value={user.interestedIn || "Everyone"} onClick={onEditProfile} />
-            <SettingsTile icon={<DetailIcon type="pin" />} title="Distance range" subtitle="Set your preferred distance" value={privacy.locationScope || "Nearby"} onClick={onPrivacy} />
-            <SettingsTile icon={<ActivityIcon />} title="Age range" subtitle="Set your preferred age range" value="18 - 28" onClick={onEditProfile} />
-            <SettingsTile icon={<HeartIcon />} title="Interests" subtitle="Choose what you're into" value={`${interests.length} selected`} onClick={onEditProfile} />
-          </SettingsSection>
-
-          <SettingsSection title="Notifications" icon={<BellIcon />}>
-            <SettingsTile icon={<MessageIcon />} title="Messages" subtitle="New messages and chat" toggle checked={notifications.messages} onToggle={() => toggleNotification("messages")} />
-            <SettingsTile icon={<HeartIcon />} title="Match alerts" subtitle="New matches and likes" toggle checked={notifications.matches} onToggle={() => toggleNotification("matches")} />
-            <SettingsTile icon={<BellIcon />} title="Push notifications" subtitle="Receive push notifications" toggle checked={notifications.push} onToggle={() => toggleNotification("push")} />
-            <SettingsTile icon={<MessageIcon />} title="Email notifications" subtitle="Receive email updates" toggle checked={notifications.email} onToggle={() => toggleNotification("email")} />
-          </SettingsSection>
-
-          <SettingsSection title="Safety" icon={<BlockIcon />}>
-            <SettingsTile icon={<BlockIcon />} title="Report a problem" subtitle="Let us know if something's wrong" onClick={onHelp} />
-            <SettingsTile icon={<BookmarkIcon />} title="Community guidelines" subtitle="Our community standards" onClick={onAbout} />
-            <SettingsTile icon={<StarIcon />} title="Safety tips" subtitle="Tips to keep yourself safe" onClick={onHelp} />
-          </SettingsSection>
-
-          <SettingsSection title="App" icon={<SettingsIcon />}>
-            <SettingsTile icon={<SettingsIcon />} title="Appearance" subtitle="Dark romantic theme" value="Dark" onClick={() => setLight(false)} />
-            <SettingsTile icon={<DetailIcon type="pin" />} title="Language" subtitle="Choose your language" value="English" onClick={onHelp} />
-            <SettingsTile icon={<BookmarkIcon />} title="Cache & storage" subtitle="Manage cached data" value="32.4 MB" onClick={onHelp} />
-            <SettingsTile icon={<ActivityIcon />} title="About app" subtitle="Version 2.5.0" onClick={onAbout} />
-          </SettingsSection>
-
-          <button className="settings-logout-btn" type="button" onClick={onLogout}>
-            <LogoutIcon />
-            <span>Log out</span>
-          </button>
+            <button className="settings-row" type="button" onClick={onAbout}>
+              <span>About app</span>
+              <b>v 2.5.0</b>
+            </button>
+            <button className="settings-row" type="button" onClick={onHelp}>
+              <span>Help center</span>
+              <b>Open</b>
+            </button>
+            <button className="settings-row danger" type="button" onClick={onLogout}>
+              <span>Log out</span>
+              <b>Exit</b>
+            </button>
+          </section>
         </div>
       </div>
     </section>
-  );
-}
-
-function SettingsSection({ title, icon, children }) {
-  return (
-    <section className="settings-lux-section">
-      <h2>
-        {icon}
-        <span>{title}</span>
-      </h2>
-      <div className="settings-lux-card">{children}</div>
-    </section>
-  );
-}
-
-function SettingsTile({
-  icon,
-  title,
-  subtitle,
-  value = "",
-  badge = "",
-  toggle = false,
-  checked = false,
-  onClick,
-  onToggle
-}) {
-  const handleClick = () => {
-    if (toggle) {
-      onToggle?.();
-      return;
-    }
-    onClick?.();
-  };
-
-  return (
-    <button
-      type="button"
-      className={`settings-lux-tile ${toggle ? "is-toggle" : ""}`}
-      onClick={handleClick}
-      aria-pressed={toggle ? checked : undefined}
-    >
-      <span className="settings-tile-icon" aria-hidden="true">{icon}</span>
-      <span className="settings-tile-copy">
-        <b>{title}</b>
-        <small>{subtitle}</small>
-      </span>
-      <span className="settings-tile-meta">
-        {badge && <em>{badge}</em>}
-        {value && <strong>{value}</strong>}
-        {toggle ? <span className={`settings-lux-toggle ${checked ? "on" : ""}`}><i /></span> : <ChevronIcon />}
-      </span>
-    </button>
   );
 }
 
@@ -7028,9 +6381,9 @@ function Settings({
           </button>
         </li>
         <li>
-          <button className="settings-row" type="button" onClick={() => setLight(false)} aria-pressed="true">
-            <span>Dark Mode</span>
-            <span className="toggle on" />
+          <button className="settings-row" type="button" onClick={() => setLight(!light)} aria-pressed={light}>
+            <span>{light ? "Light Mode" : "Dark Mode"}</span>
+            <span className={`toggle ${light ? "on" : ""}`} />
           </button>
         </li>
         <li>
@@ -8076,14 +7429,6 @@ function BackIcon() {
   );
 }
 
-function ChevronIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 18l6-6-6-6" />
-    </svg>
-  );
-}
-
 function RewindIcon() {
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -8340,36 +7685,6 @@ function MoreIcon() {
       <circle cx="12" cy="5" r="2" />
       <circle cx="12" cy="12" r="2" />
       <circle cx="12" cy="19" r="2" />
-    </svg>
-  );
-}
-
-function GlobeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M3 12h18" />
-      <path d="M12 3a13.5 13.5 0 0 1 0 18" />
-      <path d="M12 3a13.5 13.5 0 0 0 0 18" />
-    </svg>
-  );
-}
-
-function FilterIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 6h16" />
-      <path d="M7 12h10" />
-      <path d="M10 18h4" />
-    </svg>
-  );
-}
-
-function CrownIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m3 8 4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8Z" />
-      <path d="M5 19h14" />
     </svg>
   );
 }

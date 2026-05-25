@@ -33,18 +33,6 @@ loadEnvFile();
 const PORT = Number(process.env.PORT || 4000);
 const CLIENT_DIST = resolve(process.env.CLIENT_DIST || join(PROJECT_ROOT, "Frontend", "dist"));
 const CORS_ORIGIN = process.env.CORS_ORIGIN || `http://localhost:${PORT}`;
-const CORS_ALLOWED_ORIGINS = new Set(
-  [
-    CORS_ORIGIN,
-    ...(process.env.CORS_ORIGINS || "").split(","),
-    "http://localhost:3000",
-    `http://localhost:${PORT}`,
-    "capacitor://localhost",
-    "https://localhost"
-  ]
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-);
 const db = new FlameDatabase();
 let io;
 let dbReady = false;
@@ -84,28 +72,12 @@ const POST_ROUTE_ALIASES = new Map([
   ["/api/feed/posts/share", "/api/posts/share"]
 ]);
 
-function getCorsOrigin(req) {
-  if (CORS_ALLOWED_ORIGINS.has("*")) return "*";
-  const origin = req?.headers?.origin || "";
-  if (origin && CORS_ALLOWED_ORIGINS.has(origin)) return origin;
-  return CORS_ORIGIN;
-}
-
-function corsHeadersFor(req) {
-  return {
-    "Access-Control-Allow-Origin": getCorsOrigin(req),
-    "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization",
-    Vary: "Origin"
-  };
-}
-
-function jsonHeadersFor(req) {
-  return {
-    "Content-Type": "application/json; charset=utf-8",
-    ...corsHeadersFor(req)
-  };
-}
+const jsonHeaders = {
+  "Content-Type": "application/json; charset=utf-8",
+  "Access-Control-Allow-Origin": CORS_ORIGIN,
+  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization"
+};
 
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -120,7 +92,7 @@ const mime = {
 };
 
 function sendJson(res, status, payload) {
-  res.writeHead(status, jsonHeadersFor(res.req));
+  res.writeHead(status, jsonHeaders);
   res.end(JSON.stringify(payload));
 }
 
@@ -1020,7 +992,7 @@ async function markActivityEventsRead(user) {
 
 async function handleApi(req, res, url) {
   if (req.method === "OPTIONS") {
-    res.writeHead(204, jsonHeadersFor(req));
+    res.writeHead(204, jsonHeaders);
     res.end();
     return;
   }
@@ -1146,7 +1118,7 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === "/api/theme" && req.method === "PATCH") {
-    const state = await db.patchState(user, (current) => ({ ...current, light: false }));
+    const state = await db.patchState(user, (current) => ({ ...current, light: Boolean(body.light) }));
     sendJson(res, 200, { ok: true, state });
     return;
   }
@@ -1455,13 +1427,7 @@ function setupRealtime() {
   io = new SocketIOServer(server, {
     maxHttpBufferSize: 25_000_000,
     cors: {
-      origin: (origin, callback) => {
-        if (!origin || CORS_ALLOWED_ORIGINS.has("*") || CORS_ALLOWED_ORIGINS.has(origin)) {
-          callback(null, true);
-          return;
-        }
-        callback(new Error("Origin is not allowed."));
-      },
+      origin: CORS_ORIGIN,
       methods: ["GET", "POST"]
     }
   });
