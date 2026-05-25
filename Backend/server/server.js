@@ -141,6 +141,30 @@ function sendError(res, status, message) {
   sendJson(res, status, { ok: false, error: message });
 }
 
+function sendMediaResource(res, source) {
+  const value = String(source || "");
+  const dataMatch = /^data:([^;,]+);base64,([\s\S]+)$/i.exec(value);
+  if (dataMatch) {
+    const contentType = /^(image|video|audio)\//i.test(dataMatch[1]) ? dataMatch[1] : "application/octet-stream";
+    const content = Buffer.from(dataMatch[2], "base64");
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Content-Length": content.length,
+      "Cache-Control": "private, max-age=86400"
+    });
+    res.end(content);
+    return;
+  }
+
+  if (/^(https?:\/\/|\/)/i.test(value)) {
+    res.writeHead(302, { Location: value, "Cache-Control": "private, max-age=300" });
+    res.end();
+    return;
+  }
+
+  sendError(res, 404, "Media not found.");
+}
+
 function isTextAsset(filePath) {
   return [".html", ".js", ".css", ".svg", ".json"].includes(extname(filePath));
 }
@@ -1131,6 +1155,18 @@ async function handleApi(req, res, url) {
   }
 
   const body = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) ? await parseBody(req) : {};
+
+  if (pathname === "/api/media/profile" && req.method === "GET") {
+    const profileId = cleanString(url.searchParams.get("profileId"), 80);
+    sendMediaResource(res, await db.publicProfileMedia(profileId));
+    return;
+  }
+
+  if (pathname === "/api/media/post" && req.method === "GET") {
+    const postId = cleanString(url.searchParams.get("postId"), 120);
+    sendMediaResource(res, await db.publicPostMedia(postId));
+    return;
+  }
 
   if (pathname === "/api/auth/login" && req.method === "POST") {
     const credentials = validateAuth(body);

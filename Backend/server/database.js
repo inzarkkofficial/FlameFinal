@@ -135,8 +135,6 @@ const PUBLIC_USER_PROJECTION = {
   "state.user.age": 1,
   "state.user.location": 1,
   "state.user.bio": 1,
-  "state.user.image": 1,
-  "state.user.background": 1,
   "state.user.gender": 1,
   "state.user.interestedIn": 1,
   "state.user.interests": 1,
@@ -145,8 +143,22 @@ const PUBLIC_USER_PROJECTION = {
   "state.user.school": 1,
   "state.privacy": 1,
   "state.likedIds": 1,
-  "state.blockedIds": 1,
-  "state.stories": { $slice: 1 }
+  "state.blockedIds": 1
+};
+const PUBLIC_FEED_POST_PROJECTION = {
+  _id: 0,
+  id: 1,
+  authorId: 1,
+  text: 1,
+  "media.type": 1,
+  "media.name": 1,
+  "media.mime": 1,
+  tags: 1,
+  createdAt: 1,
+  updatedAt: 1,
+  reactions: 1,
+  comments: 1,
+  shares: 1
 };
 const USER_WITHOUT_MATCH_PROFILE_PROJECTION = {
   "state.matches.profile": 0
@@ -474,8 +486,8 @@ function publicProfile(user, activeUserIds, viewerId) {
     id: normalized.id,
     name: firstName(profile.fullName, normalized.email),
     age: profile.age || 18,
-    image: profile.image || defaultState.user.image,
-    background: profile.background || "",
+    image: `/api/media/profile?profileId=${encodeURIComponent(normalized.id)}`,
+    background: "",
     activeStory: publicStory(normalized.state.stories[0], viewerId),
     online: privacy.showOnline !== false && activeUserIds.has(normalized.id),
     lastActiveAt: normalized.lastActiveAt || normalized.lastLoginAt || normalized.joinedAt || null,
@@ -668,7 +680,9 @@ function publicFeedPost(post, userMap, activeUserIds, viewerId) {
   return {
     id: post.id,
     text: post.text || "",
-    media: post.media || null,
+    media: post.media?.type
+      ? { ...post.media, src: `/api/media/post?postId=${encodeURIComponent(post.id)}` }
+      : null,
     tags: Array.isArray(post.tags) ? post.tags.filter(Boolean) : [],
     createdAt: post.createdAt,
     author: publicUserSummary(userMap.get(post.authorId), activeUserIds, viewerId),
@@ -1237,7 +1251,7 @@ export class FlameDatabase {
   async ensureQueryIndexes() {
     const queryIndexes = [
       [this.posts, { createdAt: -1, id: -1 }],
-      [this.users, { "state.privacy.discoverable": 1, lastActiveAt: -1, joinedAt: -1 }]
+      [this.users, { "state.privacy.discoverable": 1, "state.user.onboardingCompleted": 1, lastActiveAt: -1, joinedAt: -1 }]
     ];
 
     for (const [collection, keys] of queryIndexes) {
@@ -1256,7 +1270,7 @@ export class FlameDatabase {
       [this.users, { lastActiveAt: -1 }],
       [this.users, { joinedAt: -1 }],
       [this.users, { "state.privacy.discoverable": 1 }],
-      [this.users, { "state.privacy.discoverable": 1, lastActiveAt: -1, joinedAt: -1 }],
+      [this.users, { "state.privacy.discoverable": 1, "state.user.onboardingCompleted": 1, lastActiveAt: -1, joinedAt: -1 }],
       [this.sessions, { token: 1 }, { unique: true }],
       [this.sessions, { userId: 1 }],
       [this.sessions, { lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }],
@@ -1459,7 +1473,8 @@ export class FlameDatabase {
     const users = await this.users
       .find({
         id: { $ne: normalizedCurrent.id },
-        "state.privacy.discoverable": { $ne: false }
+        "state.privacy.discoverable": { $ne: false },
+        "state.user.onboardingCompleted": { $ne: false }
       })
       .project(PUBLIC_USER_PROJECTION)
       .sort({ lastActiveAt: -1, joinedAt: -1 })
@@ -1482,7 +1497,7 @@ export class FlameDatabase {
     const safeLimit = Math.max(1, Math.min(60, Number(limit) || 40));
     const posts = await this.posts
       .find({})
-      .project({ _id: 0 })
+      .project(PUBLIC_FEED_POST_PROJECTION)
       .sort({ createdAt: -1, id: -1 })
       .allowDiskUse(true)
       .limit(safeLimit)
@@ -1513,6 +1528,26 @@ export class FlameDatabase {
     const activeUserIds = await this.activeUserIds();
 
     return posts.map((post) => publicFeedPost(post, userMap, activeUserIds, viewerId));
+  }
+
+  async publicProfileMedia(profileId) {
+    const user = await this.users.findOne(
+      {
+        id: String(profileId || ""),
+        "state.privacy.discoverable": { $ne: false },
+        "state.user.onboardingCompleted": { $ne: false }
+      },
+      { projection: { _id: 0, "state.user.image": 1 } }
+    );
+    return user?.state?.user?.image || DEFAULT_PROFILE_IMAGE;
+  }
+
+  async publicPostMedia(postId) {
+    const post = await this.posts.findOne(
+      { id: String(postId || "") },
+      { projection: { _id: 0, media: 1 } }
+    );
+    return post?.media?.src || "";
   }
 
   async groupRoomUserMap(rooms) {
