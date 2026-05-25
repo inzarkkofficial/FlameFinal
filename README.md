@@ -50,6 +50,7 @@ Vercel API/serverless environment variables:
 FLAME_DATASTORE=mongo
 MONGODB_URI=mongodb+srv://...
 MONGODB_DB=flame
+FLAME_SEED_DEMO_USERS=false
 ```
 
 Render persistent realtime service environment variables:
@@ -58,11 +59,12 @@ Render persistent realtime service environment variables:
 FLAME_DATASTORE=mongo
 MONGODB_URI=mongodb+srv://...
 MONGODB_DB=flame
+FLAME_SEED_DEMO_USERS=false
 CORS_ORIGINS=https://flamedating.vercel.app,https://your-preview-domain.vercel.app
 FRONTEND_URL=https://flamedating.vercel.app
 ```
 
-`JWT_SECRET` is not required by the current backend because authentication uses opaque, random session tokens stored in MongoDB. Cloudinary variables are not required until media storage is moved away from bounded inline persistence.
+`JWT_SECRET` is not required by the current backend because authentication uses opaque, random session tokens stored in MongoDB. Cloudinary variables are not required until media storage is moved away from bounded inline persistence. Set `FLAME_SEED_DEMO_USERS=true` only for a deliberate demonstration dataset; production reads do not rewrite demo profiles on cold starts.
 
 Render must remain active only for Socket.IO realtime updates and call signaling configured through `VITE_SOCKET_URL`; ordinary Vercel API requests continue through `/api`. Set `VITE_REALTIME_ENABLED=true` after the persistent realtime service is active again.
 

@@ -6700,7 +6700,7 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
   return (
     <section className="screen profile-screen" aria-label="Profile">
       <div className="profile-page-shell">
-        <section className="profile-hero-panel" style={profileBackgroundStyle(user.background)}>
+        <section className={`profile-hero-panel ${user.background ? "has-background" : ""}`} style={profileBackgroundStyle(user.background)}>
           <div className="profile-hero-overlay">
             <div className="profile-hero-main">
               <span className="profile-hero-avatar">

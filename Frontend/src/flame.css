@@ -19811,3 +19811,254 @@ body {
 .flame-app .refresh-profiles-btn:disabled {
   cursor: wait;
 }
+
+/* Unified contrast layer: premium accents remain fixed while surfaces and type follow the selected theme. */
+:root[data-theme="light"] {
+  --background: #fffaf8;
+  --foreground: #211418;
+  --card-background: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #211418;
+  --muted-surface: #f7f1f3;
+  --muted-foreground: #705962;
+  --border-color: #eadde1;
+  --border: #eadde1;
+  --primary: #ff3f68;
+  --primary-foreground: #ffffff;
+  --surface-highlight: rgba(255, 63, 104, 0.035);
+}
+
+:root[data-theme="dark"] {
+  --background: #0f080d;
+  --foreground: #fff7f7;
+  --card-background: #211219;
+  --card: #211219;
+  --card-foreground: #fff7f7;
+  --muted-surface: #2c1a22;
+  --muted-foreground: #c0aab2;
+  --border-color: rgba(255, 107, 154, 0.2);
+  --border: rgba(255, 107, 154, 0.2);
+  --primary: #ff3f68;
+  --primary-foreground: #ffffff;
+  --surface-highlight: rgba(255, 255, 255, 0.04);
+}
+
+.flame-app.app-mode {
+  color: var(--foreground);
+}
+
+.flame-app.app-mode :where(
+  .bottom-nav,
+  .topbar,
+  .messages-premium-header,
+  .messages-command-card,
+  .messages-preview-panel,
+  .conversation-rail,
+  .chat,
+  .liked-you,
+  .new-match-card,
+  .feed-post,
+  .feed-composer,
+  .home-community-composer,
+  .home-side-card,
+  .profile-panel,
+  .settings-dashboard-head,
+  .settings-panel,
+  .settings-user-panel,
+  .drawer,
+  .settings-form,
+  .profile-viewer-card,
+  .faq-list details
+) {
+  color: var(--card-foreground) !important;
+  background:
+    linear-gradient(145deg, var(--surface-highlight), transparent 58%),
+    var(--card-background) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--theme-shadow);
+}
+
+.flame-app.app-mode :where(
+  .home-composer-prompt,
+  .feed-mode-tabs button:not(.active),
+  .messages-search,
+  .messages-filter-chips button:not(.active),
+  .settings-status-grid button,
+  .settings-device-state,
+  .profile-stat-grid span,
+  .profile-detail-list span,
+  .profile-post-list article,
+  .profile-intentions span,
+  .profile-suggestions button,
+  .background-preset-grid button,
+  .rooms-search,
+  .rooms-category-row button:not(.active),
+  .rooms-hero-stats span,
+  .room-card-flags em:not(.live),
+  .rail-search,
+  .messages-preview-last,
+  .messages-capability-grid span
+) {
+  color: var(--foreground) !important;
+  background: var(--muted-surface) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode :where(
+  .section-label,
+  .feed-post-head span,
+  .feed-stats,
+  .home-composer-prompt,
+  .home-side-empty,
+  .home-trend-list small,
+  .messages-brand small,
+  .messages-summary button,
+  .messages-filter-chips button:not(.active),
+  .r2,
+  .r2 span,
+  .r2 em,
+  .settings-dashboard-head p,
+  .settings-panel-title span,
+  .settings-meta-row,
+  .settings-user-panel small,
+  .settings-status-grid small,
+  .settings-device-state small,
+  .profile-panel-head > span,
+  .profile-empty-note,
+  .profile-detail-list small,
+  .profile-intentions b,
+  .profile-interest-cloud small,
+  .rooms-landing-hero p,
+  .rooms-right-panel p,
+  .rooms-right-panel small,
+  .room-list-card small,
+  .room-list-card em,
+  .room-host-line,
+  .room-stage-head p,
+  .empty-state p,
+  .nav-label
+) {
+  color: var(--muted-foreground) !important;
+}
+
+.flame-app.app-mode :where(
+  .settings-row,
+  .settings-row span:first-child,
+  .settings-row b,
+  .settings-device-state b,
+  .profile-panel b,
+  .profile-about-copy,
+  .room-list-card b,
+  .rooms-list-head span,
+  .room-stage-head h2,
+  .room-create-panel .form-title,
+  .chat .r1 b
+) {
+  color: var(--foreground) !important;
+}
+
+.flame-app.app-mode :where(
+  input:not([type="range"]),
+  textarea,
+  select,
+  .chat-input textarea,
+  .room-create-panel input,
+  .room-create-panel textarea,
+  .room-create-panel select
+) {
+  color: var(--foreground) !important;
+  background: var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode :where(input::placeholder, textarea::placeholder) {
+  color: var(--muted-foreground) !important;
+  opacity: 1;
+}
+
+.flame-app.app-mode :where(.skeleton-dot, .skeleton-line, .skeleton-media, .skeleton-pill, .discover-skeleton-media) {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 63, 104, 0.11), transparent),
+    var(--muted-surface) !important;
+  background-size: 220% 100% !important;
+}
+
+.flame-app.app-mode .discover-skeleton-card {
+  background: var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode .toggle {
+  background: var(--muted-surface) !important;
+  border: 1px solid var(--border-color);
+}
+
+.flame-app.app-mode .toggle.on {
+  background: var(--primary) !important;
+  border-color: transparent;
+}
+
+.flame-app.app-mode .profile-hero-panel:not(.has-background) {
+  color: var(--foreground) !important;
+  background:
+    radial-gradient(circle at 85% 12%, var(--primary-soft), transparent 34%),
+    var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode .profile-hero-panel:not(.has-background) .profile-hero-overlay {
+  background: transparent !important;
+}
+
+.flame-app.app-mode .profile-hero-panel:not(.has-background) :where(h1, h1 span, p, button span) {
+  color: var(--foreground) !important;
+}
+
+.flame-app.app-mode .profile-hero-panel:not(.has-background) .profile-kicker {
+  color: var(--muted-foreground) !important;
+}
+
+.flame-app.app-mode .profile-hero-panel.has-background :where(h1, h1 span, p, button span) {
+  color: #fff7f7 !important;
+}
+
+.flame-app.app-mode.light-mode .group-rooms-screen,
+:root[data-theme="light"] .flame-app.app-mode .group-rooms-screen {
+  color: var(--foreground) !important;
+  background: var(--flame-app-background) !important;
+}
+
+.flame-app.app-mode.light-mode :where(.rooms-landing-hero, .rooms-list-page, .rooms-feature-strip, .room-stage-full, .room-create-panel, .room-list-card),
+:root[data-theme="light"] .flame-app.app-mode :where(.rooms-landing-hero, .rooms-list-page, .rooms-feature-strip, .room-stage-full, .room-create-panel, .room-list-card) {
+  color: var(--foreground) !important;
+  background:
+    linear-gradient(145deg, var(--surface-highlight), transparent 58%),
+    var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+.flame-app.app-mode.light-mode :where(.rooms-list-head button, .room-back-btn, .room-stage-actions button, .available-seat-btn, .room-callbar, .room-emoji-bar button),
+:root[data-theme="light"] .flame-app.app-mode :where(.rooms-list-head button, .room-back-btn, .room-stage-actions button, .available-seat-btn, .room-callbar, .room-emoji-bar button) {
+  color: var(--foreground) !important;
+  background: var(--muted-surface) !important;
+  border-color: var(--border-color) !important;
+}
+
+@media (max-width: 760px) {
+  .flame-app.app-mode.light-mode .discover-screen .actions,
+  :root[data-theme="light"] .flame-app.app-mode .discover-screen .actions {
+    background: color-mix(in srgb, var(--card-background) 92%, transparent) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  .flame-app.app-mode.light-mode .discover-screen .action label,
+  :root[data-theme="light"] .flame-app.app-mode .discover-screen .action label {
+    color: var(--muted-foreground) !important;
+  }
+
+  .flame-app.app-mode.light-mode .discover-screen .action:not(:disabled):hover label,
+  .flame-app.app-mode.light-mode .discover-screen .a-like label,
+  :root[data-theme="light"] .flame-app.app-mode .discover-screen .a-like label {
+    color: var(--primary) !important;
+  }
+}

@@ -557,6 +557,14 @@ function offlineError(error) {
     : "Could not connect to Flame. Please try again.";
 }
 
+function collectionFromResponse(result, ...keys) {
+  for (const key of keys) {
+    if (Array.isArray(result?.[key])) return result[key];
+    if (Array.isArray(result?.data?.[key])) return result.data[key];
+  }
+  return Array.isArray(result?.data) ? result.data : null;
+}
+
 function initialState() {
   return fallbackState;
 }
@@ -662,12 +670,14 @@ export function useFlameStore() {
     try {
       const result = await request("/feed", {
         method: "GET",
+        timeoutMs: 10000,
         ...(options.force ? { cache: "reload" } : {}),
         ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
       });
       if (requestId !== feedRequestSequence.current) return result;
-      if (result.ok && Array.isArray(result.feed)) {
-        applyFeed(result.feed);
+      const posts = collectionFromResponse(result, "feed", "posts");
+      if (result.ok && posts) {
+        applyFeed([...posts].sort((left, right) => Number(right.createdAt || 0) - Number(left.createdAt || 0)));
         setFeedStatus("success");
       } else {
         setFeedStatus("error");
@@ -685,44 +695,31 @@ export function useFlameStore() {
     setDiscoverLoading(true);
     setDiscoverStatus("loading");
     setDiscoverError("");
-    const result = await request(
-      "/discover?limit=500",
-      {
-        method: "GET",
-        cache: "reload",
-        ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
-      },
-      { skipStateApply: true }
-    );
-    if (requestId !== discoverRequestSequence.current) return result;
-    if (result.ok && Array.isArray(result.profiles)) {
-      applyDiscoverProfiles(result.profiles);
-      setDiscoverStatus("success");
-      setDiscoverLoading(false);
-      return result;
-    }
-
-    if (result.status === 404) {
-      // Compatibility only for a backend revision that predates /discover.
-      const fallback = await request("/session", {
-        method: "GET",
-        cache: "reload",
-        ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
-      });
-      const fallbackProfiles = fallback.state?.profiles || [];
-      if (requestId !== discoverRequestSequence.current) return fallback;
-      if (fallback.ok) {
-        applyDiscoverProfiles(fallbackProfiles);
+    try {
+      const result = await request(
+        "/discover?limit=60",
+        {
+          method: "GET",
+          cache: "reload",
+          timeoutMs: 10000,
+          ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
+        },
+        { skipStateApply: true }
+      );
+      if (requestId !== discoverRequestSequence.current) return result;
+      const profiles = collectionFromResponse(result, "profiles", "users");
+      if (result.ok && profiles) {
+        applyDiscoverProfiles(profiles);
         setDiscoverStatus("success");
-        setDiscoverLoading(false);
-        return { ...fallback, profiles: fallbackProfiles };
+        return { ...result, profiles };
       }
-    }
 
-    setDiscoverStatus("error");
-    setDiscoverError(result.error || "Could not load people. Please try again.");
-    setDiscoverLoading(false);
-    return result;
+      setDiscoverStatus("error");
+      setDiscoverError(result.error || "Could not load people. Please try again.");
+      return result;
+    } finally {
+      if (requestId === discoverRequestSequence.current) setDiscoverLoading(false);
+    }
   }, [applyDiscoverProfiles, request]);
 
   useEffect(() => {

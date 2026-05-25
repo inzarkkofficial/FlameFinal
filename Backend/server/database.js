@@ -146,7 +146,7 @@ const PUBLIC_USER_PROJECTION = {
   "state.privacy": 1,
   "state.likedIds": 1,
   "state.blockedIds": 1,
-  "state.stories": 1
+  "state.stories": { $slice: 1 }
 };
 const USER_WITHOUT_MATCH_PROFILE_PROJECTION = {
   "state.matches.profile": 0
@@ -997,6 +997,10 @@ class LocalCursor {
     return this;
   }
 
+  allowDiskUse() {
+    return this;
+  }
+
   limit(count) {
     this.documents = this.documents.slice(0, Math.max(0, Number(count) || 0));
     return this;
@@ -1219,12 +1223,30 @@ export class FlameDatabase {
     this.supportTickets = this.db.collection("supportTickets");
     await this.db.command({ ping: 1 });
 
+    await this.ensureQueryIndexes();
     if (this.autoIndex) {
       this.ensureIndexes().catch((error) => {
         console.warn(`MongoDB index check failed: ${error.message}`);
       });
     }
-    await this.seedPresentationUsers();
+    if (String(process.env.FLAME_SEED_DEMO_USERS || "").toLowerCase() === "true") {
+      await this.seedPresentationUsers();
+    }
+  }
+
+  async ensureQueryIndexes() {
+    const queryIndexes = [
+      [this.posts, { createdAt: -1, id: -1 }],
+      [this.users, { "state.privacy.discoverable": 1, lastActiveAt: -1, joinedAt: -1 }]
+    ];
+
+    for (const [collection, keys] of queryIndexes) {
+      try {
+        await collection.createIndex(keys);
+      } catch (error) {
+        console.warn(`MongoDB read index check failed: ${error.message}`);
+      }
+    }
   }
 
   async ensureIndexes() {
@@ -1234,6 +1256,7 @@ export class FlameDatabase {
       [this.users, { lastActiveAt: -1 }],
       [this.users, { joinedAt: -1 }],
       [this.users, { "state.privacy.discoverable": 1 }],
+      [this.users, { "state.privacy.discoverable": 1, lastActiveAt: -1, joinedAt: -1 }],
       [this.sessions, { token: 1 }, { unique: true }],
       [this.sessions, { userId: 1 }],
       [this.sessions, { lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }],
@@ -1250,13 +1273,12 @@ export class FlameDatabase {
     ];
 
     for (const [collection, keys, options = {}] of indexSpecs) {
-      await collection.createIndex(keys, options);
+      try {
+        await collection.createIndex(keys, options);
+      } catch (error) {
+        console.warn(`MongoDB index skipped for ${JSON.stringify(keys)}: ${error.message}`);
+      }
     }
-
-    await Promise.all([
-      this.users.find({ id: { $ne: "" } }).project(PUBLIC_USER_PROJECTION).limit(20).toArray(),
-      this.posts.find({}).sort({ createdAt: -1 }).limit(20).toArray()
-    ]);
   }
 
   useLocalStore(reason) {
@@ -1441,6 +1463,7 @@ export class FlameDatabase {
       })
       .project(PUBLIC_USER_PROJECTION)
       .sort({ lastActiveAt: -1, joinedAt: -1 })
+      .allowDiskUse(true)
       .limit(safeLimit)
       .toArray();
     const activeUserIds = await this.activeUserIds();
@@ -1461,6 +1484,7 @@ export class FlameDatabase {
       .find({})
       .project({ _id: 0 })
       .sort({ createdAt: -1, id: -1 })
+      .allowDiskUse(true)
       .limit(safeLimit)
       .toArray();
     const authorIds = new Set();

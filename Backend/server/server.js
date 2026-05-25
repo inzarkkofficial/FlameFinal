@@ -1156,19 +1156,21 @@ async function handleApi(req, res, url) {
   const { user } = await requireUser(req);
 
   if (pathname === "/api/session" && req.method === "GET") {
-    sendJson(res, 200, { ok: true, state: await db.publicState(user, { includeFeed: false }) });
+    sendJson(res, 200, { ok: true, success: true, state: await db.publicState(user, { includeFeed: false, includeProfiles: false }) });
     return;
   }
 
   if (pathname === "/api/feed" && req.method === "GET") {
     const requestedLimit = Math.max(1, Math.min(60, Number(url.searchParams.get("limit")) || 40));
-    sendJson(res, 200, { ok: true, feed: await db.publicFeed(user.id, { limit: requestedLimit }) });
+    const posts = await db.publicFeed(user.id, { limit: requestedLimit });
+    sendJson(res, 200, { ok: true, success: true, feed: posts, posts });
     return;
   }
 
   if (pathname === "/api/discover" && req.method === "GET") {
-    const requestedLimit = Math.max(1, Math.min(500, Number(url.searchParams.get("limit")) || 240));
-    sendJson(res, 200, { ok: true, profiles: await db.discoverProfiles(user, { limit: requestedLimit }) });
+    const requestedLimit = Math.max(1, Math.min(120, Number(url.searchParams.get("limit")) || 60));
+    const users = await db.discoverProfiles(user, { limit: requestedLimit });
+    sendJson(res, 200, { ok: true, success: true, profiles: users, users });
     return;
   }
 

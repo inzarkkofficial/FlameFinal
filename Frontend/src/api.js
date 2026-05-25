@@ -11,6 +11,7 @@ const TOKEN_KEY = "flame-api-session-token";
 const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
 export const QUICK_RETRY_DELAYS_MS = [500, 900, 1600];
 const GET_CACHE_TTL_MS = 4500;
+const DEFAULT_REQUEST_TIMEOUT_MS = 12000;
 let realtimeSocket;
 const getResponseCache = new Map();
 const inFlightGetRequests = new Map();
@@ -192,6 +193,26 @@ function wait(ms) {
   return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(url, options, timeoutMs) {
+  if (!timeoutMs || options.signal) return fetch(url, options);
+
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      const timeoutError = new Error("This request took too long. Please try again.");
+      timeoutError.status = 408;
+      timeoutError.isTimeout = true;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
+}
+
 function isRetryableStatus(status) {
   return [502, 503, 504].includes(status);
 }
@@ -201,7 +222,8 @@ export async function api(path, options = {}) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${API_URL}${normalizedPath}`;
   const retryDelays = Array.isArray(options.retryDelays) ? options.retryDelays : RETRY_DELAYS_MS;
-  const { retryDelays: _retryDelays, ...fetchOptions } = options;
+  const timeoutMs = Math.max(0, Number(options.timeoutMs) || DEFAULT_REQUEST_TIMEOUT_MS);
+  const { retryDelays: _retryDelays, timeoutMs: _timeoutMs, ...fetchOptions } = options;
   const method = String(fetchOptions.method || "GET").toUpperCase();
   const cacheKey = `${method}:${url}:${token}`;
   const canUseGetCache =
@@ -233,9 +255,10 @@ export async function api(path, options = {}) {
     for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
       let response;
       try {
-        response = await fetch(url, requestOptions);
+        response = await fetchWithTimeout(url, requestOptions, timeoutMs);
       } catch (error) {
         lastError = error;
+        if (error?.isTimeout) throw error;
         if (attempt >= retryDelays.length) break;
         await wait(retryDelays[attempt]);
         continue;
