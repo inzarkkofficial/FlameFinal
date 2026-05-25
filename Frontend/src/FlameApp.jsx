@@ -15,6 +15,15 @@ const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_POST_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_STORY_MEDIA_BYTES = MAX_POST_MEDIA_BYTES;
 const MAX_STORY_AUDIO_BYTES = 8 * 1024 * 1024;
+const MAX_INLINE_MESSAGE_MEDIA_BYTES = 1024 * 1024;
+const MESSAGE_FILE_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/zip",
+  "application/x-zip-compressed",
+  "text/plain"
+]);
 const QUICK_REPLIES = [
   "Your profile caught my eye.",
   "Coffee this week?",
@@ -413,6 +422,7 @@ export default function FlameApp() {
     retryMessage,
     reactToMessage,
     unsendMessage,
+    editMessage,
     removeMessageForYou,
     togglePinnedMessage,
     archiveConversation,
@@ -421,6 +431,7 @@ export default function FlameApp() {
     readConversation,
     sendTypingStatus,
     refreshGroupRooms,
+    refreshDiscover,
     createGroupRoom,
     joinGroupRoom,
     leaveGroupRoom,
@@ -618,6 +629,11 @@ export default function FlameApp() {
   }, [state.matches]);
 
   useEffect(() => {
+    if (!state.auth.isAuthenticated || chatWith || tab !== "discover") return;
+    refreshDiscover({ quick: true });
+  }, [chatWith, refreshDiscover, state.auth.isAuthenticated, tab]);
+
+  useEffect(() => {
     if (!state.auth.isAuthenticated || !chatWith) return undefined;
     const id = window.setTimeout(() => readConversation(chatWith), 120);
     return () => window.clearTimeout(id);
@@ -806,6 +822,10 @@ export default function FlameApp() {
                 onMenu={() => setMenuOpen(true)}
                 onNotif={openNotifications}
                 hasNotifications={hasUnreadActivity}
+                onRefresh={async () => {
+                  const result = await refreshDiscover();
+                  showToast(result.ok ? `${result.profiles?.length || 0} people loaded` : result.error);
+                }}
                 onSwipe={handleSwipe}
                 onPop={popHeart}
               />
@@ -982,7 +1002,7 @@ export default function FlameApp() {
                 isTyping={Boolean(typingByProfile[matchedProfile.id])}
                 onSend={(content) => sendMessage(matchedProfile.id, content)}
                 onRetry={(messageId) => retryMessage(matchedProfile.id, messageId)}
-                onForward={(message, target) => {
+                onForward={async (message, target) => {
                   const type = message.type || "text";
                   const content =
                     type !== "text" && message.media
@@ -994,8 +1014,8 @@ export default function FlameApp() {
                           mime: message.mime || ""
                         }
                       : { type: "text", text: message.text || "" };
-                  sendMessage(target.id, content);
-                  showToast(`Forwarded to ${target.name}`);
+                  const result = await sendMessage(target.id, content);
+                  showToast(result?.ok ? `Forwarded to ${target.name}` : result?.error || "Forward failed");
                 }}
                 onReport={async (message) => {
                   const result = await createSupportTicket({
@@ -1012,6 +1032,7 @@ export default function FlameApp() {
                 }}
                 onReact={(messageId, reaction) => reactToMessage(matchedProfile.id, messageId, reaction)}
                 onUnsend={(messageId) => unsendMessage(matchedProfile.id, messageId)}
+                onEdit={(messageId, text) => editMessage(matchedProfile.id, messageId, text)}
                 onRemove={(messageId) => removeMessageForYou(matchedProfile.id, messageId)}
                 onTogglePinned={(messageId, pinned) => togglePinnedMessage(matchedProfile.id, messageId, pinned)}
                 onArchiveConversation={async () => {
@@ -1061,7 +1082,13 @@ export default function FlameApp() {
           <BottomNav
             tab={profileTabs.has(tab) ? "profile" : settingsTabs.has(tab) ? "settings" : tab}
             setTab={navigateTo}
-            unread={state.matches.filter((m) => !m.archivedAt && !m.deletedAt && m.messages.length === 0).length}
+            unread={state.matches.reduce(
+              (count, match) =>
+                match.archivedAt || match.deletedAt
+                  ? count
+                  : count + (match.messages || []).filter((message) => message.from === "them" && !message.readAt).length,
+              0
+            )}
             onHomeRefresh={refreshHomeFeed}
             onNotifications={openNotifications}
             onLogout={logoutFromNav}
@@ -2704,7 +2731,7 @@ function FeedSkeleton() {
   );
 }
 
-function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, hasNotifications, onSwipe, onPop }) {
+function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, hasNotifications, onRefresh, onSwipe, onPop }) {
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState("discover");
   const [history, setHistory] = useState([]);
@@ -2811,11 +2838,14 @@ function Discover({ state, boostActive, boostSeconds, onBoost, onMenu, onNotif, 
           <LightningIcon />
           <span>{boostActive ? `${boostSeconds}s` : "Boost"}</span>
         </button>
+        <button className="refresh-profiles-btn" type="button" onClick={onRefresh} aria-label="Refresh people">
+          Refresh
+        </button>
       </div>
 
       <div className={`card-wrap ${boostActive ? "boosted" : ""} ${visible.length === 0 ? "empty" : ""}`}>
         {visible.length === 0 ? (
-          <EmptyState title="No signed-up users yet" subtitle="New accounts will appear here after they sign up." />
+          <EmptyState title="No new profiles available" subtitle="Refresh to check for newly discoverable people." />
         ) : (
           <AnimatePresence>
             {visible.map((profile, position) => {
@@ -3032,14 +3062,17 @@ function MessagesScreen({
   onViewStory,
   onReplyStory
 }) {
-  const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission
+  );
   const [openConversationMenu, setOpenConversationMenu] = useState("");
   const [viewingProfile, setViewingProfile] = useState(null);
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [viewingStory, setViewingStory] = useState(null);
   const [storyClock, setStoryClock] = useState(Date.now());
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setStoryClock(Date.now()), 30000);
@@ -3103,20 +3136,40 @@ function MessagesScreen({
 
   const activeMatches = state.matches.filter((match) => !match.archivedAt && !match.deletedAt);
   const archivedMatches = state.matches.filter((match) => match.archivedAt && !match.deletedAt);
+  const showArchived = filter === "archived";
   const sourceMatches = showArchived ? archivedMatches : activeMatches;
+  const totalUnread = activeMatches.reduce(
+    (count, match) => count + (match.messages || []).filter((message) => message.from === "them" && !message.readAt).length,
+    0
+  );
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sourceMatches
       .map((match) => {
         const profile = profileForMatch(match);
-        return profile ? { match, profile, last: match.messages[match.messages.length - 1] } : null;
+        const messages = Array.isArray(match.messages) ? match.messages : [];
+        const unreadCount = messages.filter((message) => message.from === "them" && !message.readAt).length;
+        const hasMedia = messages.some((message) => ["image", "video", "audio", "file"].includes(message.type));
+        return profile ? { match, profile, last: messages[messages.length - 1], unreadCount, hasMedia } : null;
       })
       .filter(Boolean)
+      .filter(({ profile, unreadCount, hasMedia }) => {
+        if (filter === "unread") return unreadCount > 0;
+        if (filter === "online") return profile.online;
+        if (filter === "media") return hasMedia;
+        return true;
+      })
       .filter(({ profile, last }) => {
         if (!q) return true;
         return profile.name.toLowerCase().includes(q) || last?.text.toLowerCase().includes(q);
       });
-  }, [query, sourceMatches]);
+  }, [filter, query, sourceMatches]);
+
+  const requestNotifications = async () => {
+    if (typeof Notification === "undefined") return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
 
   const archiveConversation = async (profileId, archived) => {
     setOpenConversationMenu("");
@@ -3130,33 +3183,69 @@ function MessagesScreen({
   };
 
   return (
-    <section className="screen" aria-label="Messages">
-      <header className="topbar">
-        <h1 className="page-title">Messages</h1>
-        <button
-          className={`icon-btn round ${showSearch ? "active" : ""}`}
-          aria-label="Search messages"
-          onClick={() => {
-            setShowSearch((value) => !value);
-            if (showSearch) setQuery("");
-          }}
-        >
-          <SearchIcon />
-        </button>
+    <section className="screen messages-screen" aria-label="Messages">
+      <header className="messages-premium-header">
+        <div className="messages-brand" aria-label="Flame Messages">
+          <img src={LOGO_SRC} alt="" />
+          <span>
+            <strong>Flame</strong>
+            <small>Messages</small>
+          </span>
+        </div>
+        <div className="messages-header-actions">
+          <button className="icon-btn round" aria-label="Focus message search" onClick={() => searchInputRef.current?.focus()}>
+            <SearchIcon />
+          </button>
+          <button
+            className={`icon-btn round ${notificationPermission === "granted" ? "enabled" : ""}`}
+            type="button"
+            aria-label={notificationPermission === "granted" ? "Message notifications enabled" : "Enable message notifications"}
+            onClick={requestNotifications}
+            disabled={notificationPermission === "unsupported"}
+          >
+            <BellIcon />
+          </button>
+        </div>
       </header>
 
-      <AnimatePresence>
-        {showSearch && (
-          <motion.div
-            className="search-row"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-          >
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or message" />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="messages-command-card">
+        <label className="messages-search">
+          <SearchIcon />
+          <input
+            ref={searchInputRef}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search by name or message"
+            aria-label="Search by name or message"
+          />
+          {query && <button type="button" onClick={() => setQuery("")} aria-label="Clear search"><XIcon /></button>}
+        </label>
+        <div className="messages-summary">
+          <h1>All Messages {totalUnread > 0 && <b>{totalUnread}</b>}</h1>
+          <button type="button" onClick={() => setFilter(showArchived ? "all" : "archived")}>
+            {showArchived ? "Active" : `${archivedMatches.length} Archived`}
+          </button>
+        </div>
+        <nav className="messages-filter-chips" aria-label="Filter messages">
+          {[
+            { id: "all", label: "All" },
+            { id: "unread", label: "Unread" },
+            { id: "online", label: "Online" },
+            { id: "media", label: "Media" },
+            { id: "archived", label: "Archived" }
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={filter === item.id ? "active" : ""}
+              onClick={() => setFilter(item.id)}
+              aria-pressed={filter === item.id}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       <div className="stories">
         {storyItems.map((story) => (
@@ -3194,7 +3283,7 @@ function MessagesScreen({
 
       <div className="section-label">
         <span>{showArchived ? "Archived" : "Your matches"}</span>
-        <button type="button" className="text-toggle" onClick={() => setShowArchived((value) => !value)}>
+        <button type="button" className="text-toggle" onClick={() => setFilter(showArchived ? "all" : "archived")}>
           {showArchived ? `${activeMatches.length} active` : `${archivedMatches.length} archived`}
         </button>
       </div>
@@ -3208,11 +3297,11 @@ function MessagesScreen({
         />
       ) : (
         <ul className="chat-list">
-          {matches.map(({ match, profile, last }) => {
-            const unread = match.messages.length === 0;
+          {matches.map(({ match, profile, last, unreadCount }) => {
+            const unread = unreadCount > 0;
             const hasStory = storyProfileIds.has(profile.id);
             return (
-              <li key={match.profileId} className="conversation-item">
+              <li key={match.profileId} className={`conversation-item ${unread ? "unread" : ""}`}>
                 <button className="chat" onClick={() => onOpenChat(profile.id)} aria-label={`Open chat with ${profile.name}`}>
                   <span
                     className={`profile-avatar-frame ${hasStory ? "has-story" : ""} ${profile.online ? "online" : ""}`}
@@ -3238,8 +3327,8 @@ function MessagesScreen({
                       <span>{relativeTime(last?.ts ?? match.matchedAt)}</span>
                     </div>
                     <div className={`r2 ${last ? "" : "muted"}`}>
-                      {last ? <span>{last.from === "me" ? "You: " : ""}{last.text}</span> : <em>Say hi</em>}
-                      {unread && <span className="badge-pill">New</span>}
+                      {last ? <span>{last.from === "me" ? "You: " : ""}{last.text || "Attachment"}</span> : <em>Say hi</em>}
+                      {unread && <span className="badge-pill">{unreadCount > 1 ? unreadCount : "New"}</span>}
                     </div>
                   </div>
                 </button>
@@ -4527,6 +4616,7 @@ function ChatScreen({
   onReport,
   onReact,
   onUnsend,
+  onEdit,
   onRemove,
   onTogglePinned,
   onArchiveConversation,
@@ -4542,6 +4632,10 @@ function ChatScreen({
   const [recordingError, setRecordingError] = useState("");
   const [activeAction, setActiveAction] = useState(null);
   const [messageNotice, setMessageNotice] = useState("");
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [previewMedia, setPreviewMedia] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
   const [viewingProfile, setViewingProfile] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -4572,8 +4666,16 @@ function ChatScreen({
     () => [...messages].reverse().find((message) => message.from === "me" && message.seenAt && !message.unsent)?.id,
     [messages]
   );
+  const latestOwnMessageId = useMemo(
+    () => [...messages].reverse().find((message) => message.from === "me" && !message.unsent)?.id,
+    [messages]
+  );
   const mediaMessages = useMemo(
     () => messages.filter((message) => !message.unsent && ["image", "video"].includes(message.type) && message.media),
+    [messages]
+  );
+  const fileMessages = useMemo(
+    () => messages.filter((message) => !message.unsent && message.type === "file" && message.media),
     [messages]
   );
   const linkItems = useMemo(
@@ -4595,7 +4697,7 @@ function ChatScreen({
     const sorted = [...messages].sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0));
     if (!q) return sorted;
     return sorted.filter((message) =>
-      [message.text, message.name, message.type, message.storyReply?.replyText, message.storyReply?.ownerName]
+      [message.text, message.name, message.type, message.replyTo?.text, message.storyReply?.replyText, message.storyReply?.ownerName]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q))
     );
@@ -5006,20 +5108,59 @@ function ChatScreen({
     };
   }, [profile.id]);
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
     const value = text.trim();
     if (!value) return;
     if (typingTimer.current) window.clearTimeout(typingTimer.current);
     setTypingStatus(false);
-    onSend({ type: "text", text: value });
+    if (editingMessage) {
+      const result = await onEdit?.(editingMessage.id, value);
+      if (result?.ok === false) {
+        showMessageNotice(result.error || "Message update failed");
+        return;
+      }
+      setEditingMessage(null);
+      showMessageNotice("Message updated");
+    } else {
+      onSend({
+        type: "text",
+        text: value,
+        ...(replyingTo
+          ? {
+              replyTo: {
+                id: replyingTo.id,
+                text: replyingTo.text || replyingTo.name || "Attachment",
+                senderId: replyingTo.senderId || (replyingTo.from === "me" ? user?.id : profile.id),
+                senderName: replyingTo.from === "me" ? "You" : profile.name,
+                type: replyingTo.type || "text"
+              }
+            }
+          : {})
+      });
+    }
+    setReplyingTo(null);
     setText("");
     setActiveAction(null);
   };
 
   const handleAttach = (file) => {
     if (!file) return;
-    const type = file.type.startsWith("video/") ? "video" : "image";
+    if (file.size > MAX_INLINE_MESSAGE_MEDIA_BYTES) {
+      showMessageNotice("Attachments must be under 1 MB");
+      return;
+    }
+    const type = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("video/")
+        ? "video"
+        : file.type.startsWith("audio/")
+          ? "audio"
+          : "file";
+    if (type === "file" && !MESSAGE_FILE_MIME_TYPES.has(file.type.toLowerCase())) {
+      showMessageNotice("Supported files: PDF, DOC, DOCX, ZIP and TXT");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       onSend({
@@ -5032,6 +5173,16 @@ function ChatScreen({
       if (fileInput.current) fileInput.current.value = "";
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleAttachments = (files) => {
+    Array.from(files || []).slice(0, 5).forEach(handleAttach);
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setDragActive(false);
+    handleAttachments(event.dataTransfer?.files);
   };
 
   const sendVoiceBlob = (blob, fallbackMime = "") => {
@@ -5186,7 +5337,7 @@ function ChatScreen({
             </button>
             <button type="button" onClick={() => { setLibraryOpen((value) => !value); setMenuOpen(false); }}>
               <PaperclipIcon />
-              <span>Photos, videos, links</span>
+              <span>Media, files and links</span>
             </button>
             <button type="button" onClick={archiveCurrentConversation}>
               <ArchiveIcon />
@@ -5252,6 +5403,24 @@ function ChatScreen({
             </div>
             <div className="library-section">
               <div className="library-title">
+                <span>Files</span>
+                <b>{fileMessages.length}</b>
+              </div>
+              {fileMessages.length === 0 ? (
+                <p>No shared files yet.</p>
+              ) : (
+                <div className="library-files">
+                  {fileMessages.slice(-10).map((message) => (
+                    <a key={message.id} href={message.media} download={message.name || "attachment"}>
+                      <PaperclipIcon />
+                      <span>{message.name || "Attachment"}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="library-section">
+              <div className="library-title">
                 <span>Links</span>
                 <b>{linkItems.length}</b>
               </div>
@@ -5305,8 +5474,9 @@ function ChatScreen({
               >
                 <img className="message-avatar" src={avatar} alt="" />
               </button>
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 className={`bubble ${own ? "me" : "them"} ${message.unsent ? "unsent" : ""} ${pinned ? "pinned" : ""}`}
                 onClick={() => {
                   if (message.unsent) {
@@ -5317,14 +5487,55 @@ function ChatScreen({
                     current?.id === message.id ? null : { id: message.id, type: "bar" }
                   );
                 }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setActiveAction((current) =>
+                      current?.id === message.id ? null : { id: message.id, type: "bar" }
+                    );
+                  }
+                }}
               >
                 {message.unsent ? (
                   <em>Message unsent</em>
                 ) : (
                   <>
-                    {message.type === "image" && message.media && <img className="message-media" src={message.media} alt={message.name || "Sent image"} />}
+                    {message.replyTo && (
+                      <span className="message-reply-preview">
+                        <b>
+                          {message.replyTo.senderId
+                            ? message.replyTo.senderId === user?.id
+                              ? "You"
+                              : profile.name
+                            : message.replyTo.senderName || "Message"}
+                        </b>
+                        <small>{message.replyTo.text || "Attachment"}</small>
+                      </span>
+                    )}
+                    {message.type === "image" && message.media && (
+                      <img
+                        className="message-media"
+                        src={message.media}
+                        alt={message.name || "Sent image"}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPreviewMedia({ type: "image", src: message.media, name: message.name || "Shared image" });
+                        }}
+                      />
+                    )}
                     {message.type === "video" && message.media && <video className="message-media" src={message.media} controls />}
                     {message.type === "audio" && message.media && <audio className="message-audio" src={message.media} controls />}
+                    {message.type === "file" && message.media && (
+                      <a
+                        className="message-file"
+                        href={message.media}
+                        download={message.name || "attachment"}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <PaperclipIcon />
+                        <span>{message.name || "Attachment"}</span>
+                      </a>
+                    )}
                     {storyReply ? (
                       <>
                         {storyTitle && <span className="message-story-title">{storyTitle}</span>}
@@ -5332,14 +5543,18 @@ function ChatScreen({
                         {own && <small className="message-story-status">Sent</small>}
                       </>
                     ) : (
-                      message.text && <span>{message.text}</span>
+                      message.text && message.type !== "file" && <span>{message.text}</span>
                     )}
+                    <small className="message-time">{relativeTimeLong(message.ts)}{message.editedAt ? " (edited)" : ""}</small>
                     {pinned && <small className="pinned-note">Pinned</small>}
                   </>
                 )}
-              </button>
+              </div>
               {!message.unsent && (
                 <div className={`inline-message-actions ${own ? "me" : "them"}`}>
+                  <button type="button" onClick={() => { setReplyingTo(message); setEditingMessage(null); inputRef.current?.focus(); }} aria-label="Reply to message">
+                    <BackIcon />
+                  </button>
                   <button type="button" onClick={() => toggleAction(message.id, "react")} aria-label="React to message">
                     <SmileIcon />
                   </button>
@@ -5366,14 +5581,18 @@ function ChatScreen({
                   <span>{seenText(message.seenAt)}</span>
                 </div>
               )}
-              {own && !message.unsent && message.status && (
+              {own && !message.unsent && message.status && (message.id === latestOwnMessageId || message.status === "failed") && (
                 <div className={`message-send-status ${message.status}`}>
                   <span>
                     {message.status === "sending"
                       ? "sending..."
                       : message.status === "failed"
                         ? "failed to send"
-                        : "sent"}
+                        : message.seenAt
+                          ? "seen"
+                          : message.deliveredAt
+                            ? "delivered"
+                            : "sent"}
                   </span>
                   {message.status === "failed" && (
                     <button type="button" onClick={() => onRetry?.(message.id)}>
@@ -5422,9 +5641,16 @@ function ChatScreen({
               {isActionOpen(message.id, "menu") && (
                 <div className={`message-panel message-menu ${own ? "me" : "them"}`}>
                   {own ? (
-                    <button type="button" onClick={() => { onUnsend(message.id); setActiveAction(null); }}>
-                      Unsend
-                    </button>
+                    <>
+                      {message.type === "text" && (
+                        <button type="button" onClick={() => { setEditingMessage(message); setReplyingTo(null); setText(message.text); inputRef.current?.focus(); setActiveAction(null); }}>
+                          Edit message
+                        </button>
+                      )}
+                      <button type="button" onClick={() => { onUnsend(message.id); setActiveAction(null); }}>
+                        Unsend
+                      </button>
+                    </>
                   ) : (
                     <button type="button" onClick={() => { onRemove(message.id); setActiveAction(null); }}>
                       Remove for you
@@ -5449,6 +5675,25 @@ function ChatScreen({
           </motion.div>
         )}
       </div>
+
+      <AnimatePresence>
+        {previewMedia && (
+          <motion.div
+            className="message-preview-modal"
+            role="dialog"
+            aria-label="Shared image preview"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPreviewMedia(null)}
+          >
+            <button type="button" className="preview-close" onClick={() => setPreviewMedia(null)} aria-label="Close preview">
+              <XIcon />
+            </button>
+            <img src={previewMedia.src} alt={previewMedia.name} onClick={(event) => event.stopPropagation()} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {call && !call.minimized && (
@@ -5488,7 +5733,25 @@ function ChatScreen({
         ))}
       </div>
 
-      <form className="chat-input" onSubmit={submit}>
+      {(replyingTo || editingMessage) && (
+        <div className="chat-compose-context" role="status">
+          <span>
+            <b>{editingMessage ? "Editing message" : `Replying to ${replyingTo.from === "me" ? "yourself" : profile.name}`}</b>
+            <small>{editingMessage?.text || replyingTo?.text || replyingTo?.name || "Attachment"}</small>
+          </span>
+          <button type="button" onClick={() => { setReplyingTo(null); setEditingMessage(null); if (editingMessage) setText(""); }} aria-label="Cancel">
+            <XIcon />
+          </button>
+        </div>
+      )}
+
+      <form
+        className={`chat-input ${dragActive ? "drag-active" : ""}`}
+        onSubmit={submit}
+        onDragOver={(event) => { event.preventDefault(); setDragActive(true); }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={handleDrop}
+      >
         <button type="button" className="icon-btn round" onClick={() => fileInput.current?.click()} aria-label="Attach file">
           <PaperclipIcon />
         </button>
@@ -5498,7 +5761,7 @@ function ChatScreen({
           value={text}
           onChange={(event) => updateText(event.target.value)}
           onBlur={() => setTypingStatus(false)}
-          placeholder={`Message ${profile.name}...`}
+          placeholder={editingMessage ? "Edit your message..." : `Message ${profile.name}...`}
           aria-label={`Message ${profile.name}`}
         />
         <button
@@ -5513,7 +5776,7 @@ function ChatScreen({
         <button type="submit" className="send-btn" aria-label="Send message" disabled={!text.trim()}>
           <SendIcon />
         </button>
-        <input ref={fileInput} type="file" accept="image/*,video/*" hidden onChange={(event) => handleAttach(event.target.files?.[0])} />
+        <input ref={fileInput} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.txt" multiple hidden onChange={(event) => handleAttachments(event.target.files)} />
         <input ref={voiceInput} type="file" accept="audio/*" capture="microphone" hidden onChange={(event) => handleVoiceFile(event.target.files?.[0])} />
       </form>
       {recordingError && <div className="voice-error" role="alert">{recordingError}</div>}

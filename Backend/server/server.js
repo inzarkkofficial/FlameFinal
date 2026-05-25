@@ -42,6 +42,18 @@ const onlineUsers = new Map();
 const POST_REACTIONS = new Set(["love", "laugh", "wow", "sad", "angry", "care", "like", "fire"]);
 const ROOM_REACTIONS = new Set(["heart", "laugh", "wow", "clap", "sad", "fire"]);
 const POST_MEDIA_MAX_CHARS = 14_000_000;
+const MESSAGE_INLINE_MEDIA_MAX_CHARS = Math.max(
+  250_000,
+  Math.min(1_500_000, Number(process.env.MESSAGE_INLINE_MEDIA_MAX_CHARS) || 1_500_000)
+);
+const MESSAGE_FILE_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/zip",
+  "application/x-zip-compressed",
+  "text/plain"
+]);
 const POSITIONSTACK_API_KEY = process.env.POSITIONSTACK_API_KEY || "";
 const POSITIONSTACK_ENDPOINT = process.env.POSITIONSTACK_ENDPOINT || "http://api.positionstack.com/v1/forward";
 const LOCATION_SEARCH_ENDPOINT = process.env.LOCATION_SEARCH_ENDPOINT || "https://nominatim.openstreetmap.org/search";
@@ -54,6 +66,7 @@ const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || "";
 const KEEP_ALIVE_URL = (process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/+$/, "");
 const KEEP_ALIVE_INTERVAL_MS = Math.max(60_000, Number(process.env.KEEP_ALIVE_INTERVAL_MS) || 8 * 60 * 1000);
 const locationSearchCache = new Map();
+const messageRateWindows = new Map();
 const POST_ROUTE_ALIASES = new Map([
   ["/posts", "/api/posts"],
   ["/feed/posts", "/api/posts"],
@@ -585,6 +598,51 @@ function sanitizeStoryMusic(value) {
   return { source: "synth", id, title, artist, startAt, duration };
 }
 
+function sanitizeMessageReply(value) {
+  if (!value || typeof value !== "object") return null;
+  const id = cleanString(value.id, 120);
+  if (!id) return null;
+  return { id };
+}
+
+function validatedMessageMedia(body, type) {
+  const rawMedia = String(body.media ?? "");
+  if (rawMedia.length > MESSAGE_INLINE_MEDIA_MAX_CHARS) {
+    const error = new Error("This attachment is too large for inline chat storage. Choose a file under 1 MB.");
+    error.status = 413;
+    throw error;
+  }
+
+  const dataMatch = /^data:([^;,]+);base64,/i.exec(rawMedia);
+  const mimeType = cleanString(dataMatch?.[1], 120).toLowerCase();
+  const isAllowed =
+    (type === "image" && mimeType.startsWith("image/")) ||
+    (type === "video" && mimeType.startsWith("video/")) ||
+    (type === "audio" && mimeType.startsWith("audio/")) ||
+    (type === "file" && MESSAGE_FILE_MIME_TYPES.has(mimeType));
+
+  if (!rawMedia || !dataMatch || !isAllowed) {
+    const error = new Error("Choose a supported attachment file.");
+    error.status = 400;
+    throw error;
+  }
+  return { media: rawMedia, mime: mimeType };
+}
+
+function enforceMessageRateLimit(userId) {
+  const now = Date.now();
+  const windowMs = 10_000;
+  const limit = 24;
+  const existing = (messageRateWindows.get(userId) || []).filter((timestamp) => now - timestamp < windowMs);
+  if (existing.length >= limit) {
+    const error = new Error("You're sending messages too quickly. Try again in a moment.");
+    error.status = 429;
+    throw error;
+  }
+  existing.push(now);
+  messageRateWindows.set(userId, existing);
+}
+
 function sanitizeGroupRoomPayload(body) {
   const name = cleanString(body.name, 80);
   const description = cleanString(body.description, 500);
@@ -664,22 +722,22 @@ async function deleteGroupRoom(user, body) {
 }
 
 async function sendMessage(user, body) {
+  enforceMessageRateLimit(user.id);
   const profileId = cleanString(body.profileId, 80);
-  const type = ["image", "video", "audio"].includes(body.type) ? body.type : "text";
+  const type = ["image", "video", "audio", "file"].includes(body.type) ? body.type : "text";
   const text = cleanString(body.text, type === "text" ? 1000 : 240);
-  const media = cleanString(body.media, 18_000_000);
   const name = cleanString(body.name, 180);
-  const mime = cleanString(body.mime, 120);
   const messageId = cleanString(body.messageId, 120);
-  const mediaPrefix = type === "image" ? "data:image/" : type === "video" ? "data:video/" : "data:audio/";
+  const replyTo = sanitizeMessageReply(body.replyTo);
 
-  if (!profileId || (type === "text" && !text) || (type !== "text" && !media.startsWith(mediaPrefix))) {
-    const error = new Error(type === "text" ? "Message text is required." : "Choose a valid media file.");
+  if (!profileId || (type === "text" && !text)) {
+    const error = new Error(!profileId ? "Choose a conversation first." : "Message text is required.");
     error.status = 400;
     throw error;
   }
 
-  const result = await db.sendMessage(user, { profileId, text, messageId, type, media, name, mime });
+  const { media = "", mime = "" } = type === "text" ? {} : validatedMessageMedia(body, type);
+  const result = await db.sendMessage(user, { profileId, text, messageId, type, media, name, mime, replyTo });
   emitResultStates(result);
   emitRealtimeMessageResult(result);
   return { state: result.senderState, message: result.senderMessage, conversationId: result.conversationId };
@@ -723,6 +781,21 @@ async function unsendMessage(user, body) {
   }
 
   const result = await db.unsendMessage(user, { profileId, messageId });
+  emitResultStates(result);
+  return result.senderState;
+}
+
+async function editMessage(user, body) {
+  const profileId = cleanString(body.profileId, 80);
+  const messageId = cleanString(body.messageId, 120);
+  const text = cleanString(body.text, 1000);
+  if (!profileId || !messageId || !text) {
+    const error = new Error("Choose your message and add updated text.");
+    error.status = 400;
+    throw error;
+  }
+
+  const result = await db.editMessage(user, { profileId, messageId, text });
   emitResultStates(result);
   return result.senderState;
 }
@@ -1008,6 +1081,12 @@ async function handleApi(req, res, url) {
       usersCollection: `${db.dbName}.users`,
       databaseReady: dbReady,
       databaseError: dbReady ? "" : dbInitError?.message || "MongoDB is connecting.",
+      capabilities: {
+        discoverRefresh: true,
+        messageReplies: true,
+        messageEditing: true,
+        fileMessages: true
+      },
       time: new Date().toISOString()
     });
     return;
@@ -1055,6 +1134,12 @@ async function handleApi(req, res, url) {
 
   if (pathname === "/api/feed" && req.method === "GET") {
     sendJson(res, 200, { ok: true, feed: await db.publicFeed(user.id) });
+    return;
+  }
+
+  if (pathname === "/api/discover" && req.method === "GET") {
+    const requestedLimit = Math.max(1, Math.min(500, Number(url.searchParams.get("limit")) || 240));
+    sendJson(res, 200, { ok: true, profiles: await db.discoverProfiles(user, { limit: requestedLimit }) });
     return;
   }
 
@@ -1201,6 +1286,12 @@ async function handleApi(req, res, url) {
 
   if (pathname === "/api/messages/unsend" && req.method === "POST") {
     const state = await unsendMessage(user, body);
+    sendJson(res, 200, { ok: true, state });
+    return;
+  }
+
+  if (pathname === "/api/messages/edit" && req.method === "PATCH") {
+    const state = await editMessage(user, body);
     sendJson(res, 200, { ok: true, state });
     return;
   }
@@ -1559,6 +1650,18 @@ function setupRealtime() {
       } catch (error) {
         if (typeof acknowledge === "function") {
           acknowledge({ ok: false, error: error.message || "Unsend failed." });
+        }
+      }
+    });
+
+    socket.on("message:edit", async (payload, acknowledge) => {
+      try {
+        const user = await getSocketUser();
+        const state = await editMessage(user, payload || {});
+        if (typeof acknowledge === "function") acknowledge({ ok: true, state });
+      } catch (error) {
+        if (typeof acknowledge === "function") {
+          acknowledge({ ok: false, error: error.message || "Edit failed." });
         }
       }
     });

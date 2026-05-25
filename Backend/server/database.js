@@ -1430,8 +1430,9 @@ export class FlameDatabase {
     this.onlineUserIds = new Set(Array.from(userIds || []).map(String));
   }
 
-  async discoverProfiles(currentUser) {
+  async discoverProfiles(currentUser, { limit = 240 } = {}) {
     const normalizedCurrent = normalizeUser(currentUser);
+    const safeLimit = Math.max(1, Math.min(500, Number(limit) || 240));
     const users = await this.users
       .find({
         id: { $ne: normalizedCurrent.id },
@@ -1439,7 +1440,7 @@ export class FlameDatabase {
       })
       .project(PUBLIC_USER_PROJECTION)
       .sort({ lastActiveAt: -1, joinedAt: -1 })
-      .limit(80)
+      .limit(safeLimit)
       .toArray();
     const activeUserIds = await this.activeUserIds();
     const matchedIds = new Set(normalizedCurrent.state.matches.map((match) => match.profileId));
@@ -2329,8 +2330,16 @@ export class FlameDatabase {
     return this.saveState(normalized, state);
   }
 
-  async sendMessage(sender, { profileId, text, messageId, type = "text", media = "", name = "", mime = "", storyReply = null, senderText = "", recipientText = "" }) {
+  async sendMessage(sender, { profileId, text, messageId, type = "text", media = "", name = "", mime = "", storyReply = null, replyTo = null, senderText = "", recipientText = "" }) {
     const normalizedSender = normalizeUser(sender);
+    const senderMatch = normalizedSender.state.matches.find(
+      (match) => match.profileId === profileId && !match.blockedAt && !match.deletedAt
+    );
+    if (!senderMatch) {
+      const error = new Error("Messages are available after you match.");
+      error.status = 403;
+      throw error;
+    }
     const recipient = await this.findUserById(profileId);
     const normalizedRecipient = recipient ? normalizeUser(recipient) : null;
     if (
@@ -2345,6 +2354,21 @@ export class FlameDatabase {
     const id = messageId || randomUUID();
     const conversationId = conversationIdFor(normalizedSender.id, profileId);
     const replyPreview = messageStoryReplyPreview(storyReply);
+    let quotedMessage = null;
+    if (replyTo?.id) {
+      const sourceMessage = (senderMatch.messages || []).find((message) => message.id === replyTo.id && !message.unsent);
+      if (!sourceMessage) {
+        const error = new Error("The message you are replying to is no longer available.");
+        error.status = 400;
+        throw error;
+      }
+      quotedMessage = {
+        id: sourceMessage.id,
+        text: String(sourceMessage.text || sourceMessage.name || "Attachment").slice(0, 180),
+        senderId: sourceMessage.senderId || (sourceMessage.from === "me" ? normalizedSender.id : profileId),
+        type: ["text", "image", "video", "audio", "file"].includes(sourceMessage.type) ? sourceMessage.type : "text"
+      };
+    }
     const baseMessage = {
       id,
       text,
@@ -2353,9 +2377,11 @@ export class FlameDatabase {
       profileId,
       conversationId,
       status: "sent",
+      deliveredAt: normalizedRecipient ? now : 0,
       type,
       reactions: {},
       ...(replyPreview ? { storyReply: replyPreview } : {}),
+      ...(quotedMessage ? { replyTo: quotedMessage } : {}),
       ...(type !== "text" ? { media, name, mime } : {})
     };
     const senderMessage = { ...baseMessage, text: senderText || text, from: "me" };
@@ -2383,7 +2409,7 @@ export class FlameDatabase {
     throw error;
   }
 
-  async patchMessagePair(user, profileId, messageId, ownUpdater, recipientUpdater, { requireOwnMessage = false } = {}) {
+  async patchMessagePair(user, profileId, messageId, ownUpdater, recipientUpdater, { requireOwnMessage = false, ownershipError = "You can only change your own messages." } = {}) {
     const normalized = normalizeUser(user);
     const recipient = await this.findUserById(profileId);
     const ownState = clone(normalized.state);
@@ -2396,7 +2422,7 @@ export class FlameDatabase {
       throw error;
     }
     if (requireOwnMessage && ownMessage.from !== "me") {
-      const error = new Error("You can only unsend your own messages.");
+      const error = new Error(ownershipError);
       error.status = 403;
       throw error;
     }
@@ -2452,7 +2478,32 @@ export class FlameDatabase {
       unsentAt: Date.now()
     });
 
-    return this.patchMessagePair(user, profileId, messageId, markUnsent, markUnsent, { requireOwnMessage: true });
+    return this.patchMessagePair(user, profileId, messageId, markUnsent, markUnsent, {
+      requireOwnMessage: true,
+      ownershipError: "You can only unsend your own messages."
+    });
+  }
+
+  async editMessage(user, { profileId, messageId, text }) {
+    const normalized = normalizeUser(user);
+    const message = normalized.state.matches
+      .find((match) => match.profileId === profileId)
+      ?.messages?.find((item) => item.id === messageId);
+    if (message?.unsent || (message && message.type !== "text")) {
+      const error = new Error("Only active text messages can be edited.");
+      error.status = 400;
+      throw error;
+    }
+    const updateText = (message) => ({
+      ...message,
+      text,
+      editedAt: Date.now()
+    });
+
+    return this.patchMessagePair(user, profileId, messageId, updateText, updateText, {
+      requireOwnMessage: true,
+      ownershipError: "You can only edit your own messages."
+    });
   }
 
   async removeMessageForUser(user, { profileId, messageId }) {

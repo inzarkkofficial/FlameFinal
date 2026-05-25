@@ -3,6 +3,7 @@ import {
   api,
   connectRealtime,
   disconnectRealtime,
+  editRealtimeMessage,
   getToken,
   joinRealtimeRoom,
   jsonBody,
@@ -266,7 +267,8 @@ function normalizeMessage(message) {
     ts: Number(message.ts) || Date.now(),
     type: message.type || "text",
     status: message.status || (message.from === "me" ? "sent" : ""),
-    reactions: message.reactions || {}
+    reactions: message.reactions || {},
+    replyTo: message.replyTo || null
   };
 }
 
@@ -603,6 +605,23 @@ export function useFlameStore() {
     setLastError("");
   }, []);
 
+  const applyDiscoverProfiles = useCallback((profiles) => {
+    setState((current) => {
+      const normalizedProfiles = Array.isArray(profiles)
+        ? profiles.map(normalizeProfile).filter(Boolean)
+        : [];
+      currentProfiles = normalizedProfiles;
+      profileCache.clear();
+      for (const profile of normalizedProfiles) profileCache.set(profile.id, profile);
+      for (const match of current.matches) {
+        const profile = normalizeProfile(match.profile);
+        if (profile) profileCache.set(profile.id, profile);
+      }
+      return { ...current, profiles: normalizedProfiles };
+    });
+    setLastError("");
+  }, []);
+
   const request = useCallback(
     async (path, options, config = {}) => {
       try {
@@ -640,6 +659,20 @@ export function useFlameStore() {
     }
   }, [applyFeed, request]);
 
+  const refreshDiscover = useCallback(async (options = {}) => {
+    const result = await request(
+      "/discover?limit=500",
+      {
+        method: "GET",
+        cache: "reload",
+        ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
+      },
+      { skipStateApply: true }
+    );
+    if (result.profiles) applyDiscoverProfiles(result.profiles);
+    return result;
+  }, [applyDiscoverProfiles, request]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -655,6 +688,7 @@ export function useFlameStore() {
         retryDelays: QUICK_RETRY_DELAYS_MS
       });
       const feedPromise = fetchFeed({ quick: true });
+      const discoverPromise = refreshDiscover({ quick: true });
       const roomsPromise = getToken()
         ? request(
             "/group-rooms",
@@ -670,6 +704,7 @@ export function useFlameStore() {
         setHydrated(true);
       }
       feedPromise.catch(() => {});
+      discoverPromise.catch(() => {});
       roomsPromise.catch(() => {});
     }
 
@@ -677,7 +712,7 @@ export function useFlameStore() {
     return () => {
       cancelled = true;
     };
-  }, [applyGroupRooms, fetchFeed, request]);
+  }, [applyGroupRooms, fetchFeed, refreshDiscover, request]);
 
   useEffect(() => {
     return () => {
@@ -738,6 +773,17 @@ export function useFlameStore() {
     const handleReceiveMessage = ({ profileId, message }) => {
       if (!profileId || !message?.id) return;
       setState((current) => upsertMessageForProfile(current, profileId, { ...message, status: "sent" }));
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
+        const profile = profileCache.get(profileId);
+        const title = profile?.name ? `Message from ${profile.name}` : "New Flame message";
+        const body = message.type === "text" ? message.text : `Sent ${message.type || "an attachment"}`;
+        new Notification(title, { body, icon: profile?.image || DEFAULT_PROFILE_IMAGE, tag: `flame-${profileId}` });
+      }
     };
     const handleMessageSent = ({ profileId, messageId, message }) => {
       if (!profileId || !messageId) return;
@@ -821,6 +867,7 @@ export function useFlameStore() {
         window.setTimeout(() => {
           request("/session", { method: "GET" });
           fetchFeed();
+          refreshDiscover();
           request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((roomsResult) => {
             if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
           });
@@ -832,7 +879,7 @@ export function useFlameStore() {
         return { ok: false, error: message };
       }
     },
-    [applyGroupRooms, applyServerState, fetchFeed, request]
+    [applyGroupRooms, applyServerState, fetchFeed, refreshDiscover, request]
   );
 
   const signup = useCallback(
@@ -847,6 +894,7 @@ export function useFlameStore() {
         window.setTimeout(() => {
           request("/session", { method: "GET" });
           fetchFeed();
+          refreshDiscover();
           request("/group-rooms", { method: "GET" }, { skipStateApply: true }).then((roomsResult) => {
             if (roomsResult.rooms) applyGroupRooms(roomsResult.rooms);
           });
@@ -854,7 +902,7 @@ export function useFlameStore() {
       }
       return result;
     },
-    [applyGroupRooms, fetchFeed, request]
+    [applyGroupRooms, fetchFeed, refreshDiscover, request]
   );
 
   const logout = useCallback(async () => {
@@ -935,7 +983,7 @@ export function useFlameStore() {
           ? { type: "text", text: content }
           : { type: content?.type || "text", ...content };
       const trimmed = String(payload.text || "").trim();
-      const isMedia = ["image", "video", "audio"].includes(payload.type);
+      const isMedia = ["image", "video", "audio", "file"].includes(payload.type);
       const storyReply = payload.storyReply && typeof payload.storyReply === "object"
         ? {
             id: payload.storyReply.id || "",
@@ -949,7 +997,18 @@ export function useFlameStore() {
             createdAt: Number(payload.storyReply.createdAt) || Date.now()
           }
         : null;
-      if ((!isMedia && !trimmed) || (isMedia && !payload.media)) return;
+      const replyTo = payload.replyTo && typeof payload.replyTo === "object" && payload.replyTo.id
+        ? {
+            id: String(payload.replyTo.id),
+            text: String(payload.replyTo.text || "").slice(0, 180),
+            senderId: String(payload.replyTo.senderId || "").slice(0, 80),
+            senderName: String(payload.replyTo.senderName || "").slice(0, 80),
+            type: payload.replyTo.type || "text"
+          }
+        : null;
+      if ((!isMedia && !trimmed) || (isMedia && !payload.media)) {
+        return Promise.resolve({ ok: false, error: "Message content is required." });
+      }
 
       const now = Date.now();
       const messageId = `${now}-${Math.random().toString(36).slice(2)}`;
@@ -964,6 +1023,7 @@ export function useFlameStore() {
         type: payload.type,
         reactions: {},
         ...(storyReply ? { storyReply } : {}),
+        ...(replyTo ? { replyTo } : {}),
         ...(isMedia
           ? {
               media: payload.media,
@@ -982,7 +1042,7 @@ export function useFlameStore() {
           body: jsonBody(messagePayload)
         });
 
-      sendRealtimeMessage(messagePayload).catch(persistMessage).then((result) => {
+      return sendRealtimeMessage(messagePayload).catch(persistMessage).then((result) => {
         if (result.ok) {
           if (result.state) applyServerState(result.state);
           setState((current) =>
@@ -992,7 +1052,7 @@ export function useFlameStore() {
               status: "sent"
             })
           );
-          return;
+          return result;
         }
 
         setState((current) =>
@@ -1002,6 +1062,7 @@ export function useFlameStore() {
             error: result.error || "failed to send"
           }))
         );
+        return result;
       });
     },
     [applyServerState, request, state.auth?.id]
@@ -1099,6 +1160,40 @@ export function useFlameStore() {
         });
     },
     [applyServerState, patchMessageLocal, request]
+  );
+
+  const editMessage = useCallback(
+    (profileId, messageId, text) => {
+      const trimmed = String(text || "").trim();
+      if (!trimmed) return Promise.resolve({ ok: false, error: "Message text is required." });
+      const previousMessage = state.matches
+        .find((match) => match.profileId === profileId)
+        ?.messages?.find((message) => message.id === messageId);
+      patchMessageLocal(profileId, messageId, (message) => ({
+        ...message,
+        text: trimmed,
+        editedAt: Date.now()
+      }));
+
+      return editRealtimeMessage({ profileId, messageId, text: trimmed })
+        .then((result) => {
+          if (result.state) applyServerState(result.state);
+          return { ok: true, ...result };
+        })
+        .catch(() =>
+          request("/messages/edit", {
+            method: "PATCH",
+            body: jsonBody({ profileId, messageId, text: trimmed })
+          })
+        )
+        .then((result) => {
+          if (!result.ok && previousMessage) {
+            patchMessageLocal(profileId, messageId, () => previousMessage);
+          }
+          return result;
+        });
+    },
+    [applyServerState, patchMessageLocal, request, state.matches]
   );
 
   const removeMessageForYou = useCallback(
@@ -1607,6 +1702,7 @@ export function useFlameStore() {
     retryMessage,
     reactToMessage,
     unsendMessage,
+    editMessage,
     removeMessageForYou,
     togglePinnedMessage,
     archiveConversation,
@@ -1615,6 +1711,7 @@ export function useFlameStore() {
     readConversation,
     sendTypingStatus,
     refreshGroupRooms,
+    refreshDiscover,
     createGroupRoom,
     joinGroupRoom,
     leaveGroupRoom,

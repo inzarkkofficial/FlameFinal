@@ -17754,3 +17754,501 @@ body {
     height: 30px !important;
   }
 }
+
+/* Messaging workspace: responsive command surface and conversation enhancements. */
+.flame-app .discover-tools {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.flame-app .refresh-profiles-btn {
+  min-height: 38px;
+  padding: 0 13px;
+  color: var(--primary);
+  background: var(--theme-surface);
+  border: 1px solid rgba(255, 63, 104, 0.24);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.flame-app .refresh-profiles-btn:hover,
+.flame-app .refresh-profiles-btn:active {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: 0 8px 22px rgba(255, 63, 104, 0.22);
+}
+
+.flame-app .messages-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.flame-app .messages-premium-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -6px 0 0;
+  padding: calc(12px + env(safe-area-inset-top)) var(--side-pad) 10px;
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  border-bottom: 1px solid var(--theme-border);
+  backdrop-filter: blur(18px);
+}
+
+.flame-app .messages-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.flame-app .messages-brand img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  filter: drop-shadow(0 7px 15px rgba(255, 63, 104, 0.25));
+}
+
+.flame-app .messages-brand span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.flame-app .messages-brand strong {
+  color: var(--primary);
+  font-family: var(--flame-font-display);
+  font-size: 27px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.flame-app .messages-brand small {
+  color: var(--theme-text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.flame-app .messages-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.flame-app .messages-header-actions .enabled {
+  color: var(--primary);
+  border-color: rgba(255, 63, 104, 0.34);
+  background: rgba(255, 63, 104, 0.1);
+}
+
+.flame-app .messages-command-card {
+  display: grid;
+  gap: 14px;
+  margin: 0 var(--side-pad);
+  padding: 14px;
+  background: var(--flame-feed-card-bg);
+  border: 1px solid var(--flame-feed-card-border);
+  border-radius: 16px;
+  box-shadow: var(--flame-feed-card-shadow);
+}
+
+.flame-app .messages-search {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 13px;
+  color: var(--theme-text-secondary);
+  background: var(--theme-hover);
+  border: 1px solid rgba(255, 63, 104, 0.18);
+  border-radius: 13px;
+}
+
+.flame-app .messages-search:focus-within {
+  color: var(--primary);
+  border-color: rgba(255, 63, 104, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 63, 104, 0.1);
+}
+
+.flame-app .messages-search svg {
+  width: 20px;
+  height: 20px;
+}
+
+.flame-app .messages-search input {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0;
+  color: var(--theme-text-primary);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 14px;
+}
+
+.flame-app .messages-search input::placeholder {
+  color: var(--theme-text-secondary);
+}
+
+.flame-app .messages-search button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.flame-app .messages-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.flame-app .messages-summary h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  color: var(--theme-text-primary);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.flame-app .messages-summary h1 b {
+  display: grid;
+  place-items: center;
+  min-width: 25px;
+  height: 25px;
+  padding: 0 7px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.flame-app .messages-summary button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--primary);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flame-app .messages-summary button:hover {
+  background: rgba(255, 63, 104, 0.1);
+}
+
+.flame-app .messages-filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.flame-app .messages-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.flame-app .messages-filter-chips button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 15px;
+  color: var(--theme-text-secondary);
+  background: var(--theme-hover);
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flame-app .messages-filter-chips button.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-color: transparent;
+  box-shadow: 0 9px 20px rgba(255, 63, 104, 0.21);
+}
+
+.flame-app .messages-screen .stories {
+  padding-top: 2px;
+  padding-bottom: 0;
+}
+
+.flame-app .messages-screen .section-label {
+  padding-top: 0;
+}
+
+.flame-app .conversation-item.unread .chat {
+  border-color: rgba(255, 63, 104, 0.35);
+  background:
+    linear-gradient(110deg, rgba(255, 63, 104, 0.09), transparent 48%),
+    var(--card);
+  box-shadow: 0 12px 30px rgba(255, 63, 104, 0.1);
+}
+
+.flame-app .conversation-item.unread .r1 b {
+  color: var(--primary);
+}
+
+.flame-app .bubble {
+  cursor: pointer;
+}
+
+.flame-app .message-reply-preview {
+  display: grid;
+  gap: 2px;
+  margin: -2px -5px 8px;
+  padding: 7px 9px;
+  border-left: 3px solid currentColor;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.flame-app .bubble.them .message-reply-preview {
+  color: var(--primary);
+  background: rgba(255, 63, 104, 0.07);
+}
+
+.flame-app .message-reply-preview b,
+.flame-app .message-reply-preview small {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .message-reply-preview b {
+  font-size: 11px;
+}
+
+.flame-app .message-reply-preview small {
+  color: inherit;
+  opacity: 0.82;
+  font-size: 11px;
+}
+
+.flame-app .message-time {
+  display: block;
+  margin-top: 6px;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.flame-app .message-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(244px, 60vw);
+  padding: 9px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.11);
+  border-radius: 9px;
+  text-decoration: none;
+}
+
+.flame-app .bubble.them .message-file {
+  background: rgba(255, 63, 104, 0.08);
+}
+
+.flame-app .message-file svg {
+  flex: 0 0 auto;
+  width: 19px;
+  height: 19px;
+}
+
+.flame-app .message-file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .library-files {
+  display: grid;
+  gap: 7px;
+}
+
+.flame-app .library-files a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 0 11px;
+  color: var(--theme-text-primary);
+  background: var(--theme-hover);
+  border: 1px solid var(--theme-border);
+  border-radius: 9px;
+  text-decoration: none;
+}
+
+.flame-app .library-files svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.flame-app .library-files span {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .chat-compose-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px var(--side-pad);
+  background: var(--theme-surface);
+  border-top: 1px solid var(--theme-border);
+}
+
+.flame-app .chat-compose-context span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding-left: 9px;
+  border-left: 3px solid var(--primary);
+}
+
+.flame-app .chat-compose-context b,
+.flame-app .chat-compose-context small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .chat-compose-context b {
+  color: var(--primary);
+  font-size: 11px;
+}
+
+.flame-app .chat-compose-context small {
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+}
+
+.flame-app .chat-compose-context button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.flame-app .chat-input.drag-active {
+  box-shadow: inset 0 0 0 2px var(--primary), 0 -9px 24px rgba(255, 63, 104, 0.14);
+}
+
+.flame-app .message-preview-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: grid;
+  place-items: center;
+  padding: 64px 20px 24px;
+  background: rgba(11, 6, 10, 0.86);
+  backdrop-filter: blur(12px);
+}
+
+.flame-app .message-preview-modal > img {
+  width: min(92vw, 820px);
+  max-height: calc(100dvh - 100px);
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 20px 64px rgba(0, 0, 0, 0.42);
+}
+
+.flame-app .message-preview-modal .preview-close {
+  position: absolute;
+  top: calc(18px + env(safe-area-inset-top));
+  right: 20px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.11);
+  border-radius: 50%;
+}
+
+@media (max-width: 760px) {
+  .flame-app.app-mode .messages-screen {
+    gap: 12px !important;
+  }
+
+  .flame-app.app-mode .messages-premium-header {
+    width: calc(100% + (var(--mobile-pad) * 2)) !important;
+    margin: -24px calc(var(--mobile-pad) * -1) 0 !important;
+    padding-right: var(--mobile-pad) !important;
+    padding-left: var(--mobile-pad) !important;
+  }
+
+  .flame-app.app-mode .messages-command-card {
+    margin: 0 !important;
+    padding: 12px !important;
+  }
+
+  .flame-app.app-mode .messages-brand img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .flame-app.app-mode .messages-brand strong {
+    font-size: 25px;
+  }
+
+  .flame-app.app-mode .chat-screen {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .flame-app.app-mode .chat-compose-context {
+    flex: 0 0 auto;
+    padding-right: var(--mobile-pad) !important;
+    padding-left: var(--mobile-pad) !important;
+  }
+
+  .flame-app.app-mode .inline-message-actions button {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+@media (max-width: 420px) {
+  .flame-app .discover-tools {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .flame-app .refresh-profiles-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .flame-app.app-mode .messages-summary h1 {
+    font-size: 18px;
+  }
+
+  .flame-app.app-mode .messages-header-actions .icon-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+  }
+}

@@ -132,6 +132,10 @@ export function unsendRealtimeMessage(payload) {
   return sendRealtimeAction("message:unsend", payload, "Unsend failed.");
 }
 
+export function editRealtimeMessage(payload) {
+  return sendRealtimeAction("message:edit", payload, "Edit failed.");
+}
+
 export function removeRealtimeMessageForYou(payload) {
   return sendRealtimeAction("message:remove-for-you", payload, "Remove failed.");
 }
