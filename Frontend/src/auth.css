@@ -2004,21 +2004,29 @@
 
 /* Theme-aware auth overrides loaded after the base auth skin. */
 .flame-app.auth-mode.light-mode {
+  --fg: #21181c;
+  --muted: #65555d;
+  --card: #ffffff;
+  --border: #e3d7dc;
+  --primary: #d81b53;
+  --primary-2: #c92f59;
+  --primary-soft: rgba(255, 63, 104, 0.1);
+  color: #21181c;
   background: #fff7f4;
 }
 
 .flame-app.auth-mode.light-mode :is(.auth-title, .auth-label, .auth-input, .auth-social-btn span, .auth-terms, .auth-security) {
-  color: #2b1518;
+  color: #21181c;
 }
 
 .flame-app.auth-mode.light-mode :is(.auth-subtitle, .auth-divider, .auth-password-status) {
-  color: #775c63;
+  color: #65555d;
 }
 
 .flame-app.auth-mode.light-mode :is(.auth-input-group, .auth-social-btn, .auth-tabs, .auth-option) {
-  color: #2b1518;
-  background: rgba(43, 21, 24, 0.045);
-  border-color: rgba(94, 42, 44, 0.14);
+  color: #21181c;
+  background: #ffffff;
+  border-color: #e3d7dc;
 }
 
 .flame-app.auth-mode.light-mode .auth-input {
@@ -2026,7 +2034,8 @@
 }
 
 .flame-app.auth-mode.light-mode .auth-input::placeholder {
-  color: #9a7b83;
+  color: #75656d;
+  opacity: 1;
 }
 
 .flame-app.auth-mode .auth-form {
@@ -2113,4 +2122,29 @@
     border-color: rgba(255, 63, 104, 0.22);
     box-shadow: 0 30px 80px rgba(126, 34, 57, 0.16);
   }
+}
+
+/* Accessible Light auth actions and focus states. */
+.flame-app.auth-mode.light-mode :is(.auth-primary-btn, .auth-tab.active) {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)) !important;
+}
+
+.flame-app.auth-mode.light-mode :is(.auth-forgot-password, .auth-input-icon) {
+  color: #b21d4a;
+}
+
+.flame-app.auth-mode.light-mode :is(.auth-toggle-password, .auth-option:not(.active)) {
+  color: #65555d;
+}
+
+.flame-app.auth-mode.light-mode :is(.auth-input-group:focus-within, .auth-input-group:has(.auth-input:focus)) {
+  background: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(216, 27, 83, 0.12);
+}
+
+.flame-app.auth-mode.light-mode :is(.auth-field:has(.auth-input-group:focus-within), .auth-field:has(.auth-input:not(:placeholder-shown))) .auth-label {
+  color: #a21b46;
+  background: #ffffff;
 }
