@@ -476,10 +476,23 @@ export default function FlameApp() {
   const [toast, setToast] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [authPage, setAuthPage] = useState("login");
+  const [messageCapabilities, setMessageCapabilities] = useState({});
   const timers = useRef({ toast: null, burst: null, modal: null });
   const chatWithRef = useRef(chatWith);
   const matchesRef = useRef(state.matches);
   const boostUntil = state.boostUntil || 0;
+
+  useEffect(() => {
+    let active = true;
+    api("/health", { method: "GET", cache: "no-store", retryDelays: [] })
+      .then((result) => {
+        if (active) setMessageCapabilities(result.capabilities || {});
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!boostUntil) return undefined;
@@ -1000,6 +1013,7 @@ export default function FlameApp() {
                   .filter(Boolean)
                   .filter((item) => item.id !== matchedProfile.id)}
                 isTyping={Boolean(typingByProfile[matchedProfile.id])}
+                capabilities={messageCapabilities}
                 onSend={(content) => sendMessage(matchedProfile.id, content)}
                 onRetry={(messageId) => retryMessage(matchedProfile.id, messageId)}
                 onForward={async (message, target) => {
@@ -4610,6 +4624,7 @@ function ChatScreen({
   posts = [],
   forwardTargets = [],
   isTyping,
+  capabilities = {},
   onSend,
   onRetry,
   onForward,
@@ -5157,6 +5172,10 @@ function ChatScreen({
         : file.type.startsWith("audio/")
           ? "audio"
           : "file";
+    if (type === "file" && !capabilities.fileMessages) {
+      showMessageNotice("Document sharing is finishing deployment");
+      return;
+    }
     if (type === "file" && !MESSAGE_FILE_MIME_TYPES.has(file.type.toLowerCase())) {
       showMessageNotice("Supported files: PDF, DOC, DOCX, ZIP and TXT");
       return;
@@ -5552,9 +5571,11 @@ function ChatScreen({
               </div>
               {!message.unsent && (
                 <div className={`inline-message-actions ${own ? "me" : "them"}`}>
-                  <button type="button" onClick={() => { setReplyingTo(message); setEditingMessage(null); inputRef.current?.focus(); }} aria-label="Reply to message">
-                    <BackIcon />
-                  </button>
+                  {capabilities.messageReplies && (
+                    <button type="button" onClick={() => { setReplyingTo(message); setEditingMessage(null); inputRef.current?.focus(); }} aria-label="Reply to message">
+                      <BackIcon />
+                    </button>
+                  )}
                   <button type="button" onClick={() => toggleAction(message.id, "react")} aria-label="React to message">
                     <SmileIcon />
                   </button>
@@ -5642,7 +5663,7 @@ function ChatScreen({
                 <div className={`message-panel message-menu ${own ? "me" : "them"}`}>
                   {own ? (
                     <>
-                      {message.type === "text" && (
+                      {capabilities.messageEditing && message.type === "text" && (
                         <button type="button" onClick={() => { setEditingMessage(message); setReplyingTo(null); setText(message.text); inputRef.current?.focus(); setActiveAction(null); }}>
                           Edit message
                         </button>
@@ -5776,7 +5797,14 @@ function ChatScreen({
         <button type="submit" className="send-btn" aria-label="Send message" disabled={!text.trim()}>
           <SendIcon />
         </button>
-        <input ref={fileInput} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.txt" multiple hidden onChange={(event) => handleAttachments(event.target.files)} />
+        <input
+          ref={fileInput}
+          type="file"
+          accept={capabilities.fileMessages ? "image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.txt" : "image/*,video/*,audio/*"}
+          multiple
+          hidden
+          onChange={(event) => handleAttachments(event.target.files)}
+        />
         <input ref={voiceInput} type="file" accept="audio/*" capture="microphone" hidden onChange={(event) => handleVoiceFile(event.target.files?.[0])} />
       </form>
       {recordingError && <div className="voice-error" role="alert">{recordingError}</div>}

@@ -669,8 +669,20 @@ export function useFlameStore() {
       },
       { skipStateApply: true }
     );
-    if (result.profiles) applyDiscoverProfiles(result.profiles);
-    return result;
+    if (result.ok && result.profiles) {
+      applyDiscoverProfiles(result.profiles);
+      return result;
+    }
+
+    // Keep discovery usable while an older backend revision is still serving production.
+    const fallback = await request("/session", {
+      method: "GET",
+      cache: "reload",
+      ...(options.quick ? { retryDelays: QUICK_RETRY_DELAYS_MS } : {})
+    });
+    const fallbackProfiles = fallback.state?.profiles || [];
+    if (fallback.ok) applyDiscoverProfiles(fallbackProfiles);
+    return fallback.ok ? { ...fallback, profiles: fallbackProfiles } : result;
   }, [applyDiscoverProfiles, request]);
 
   useEffect(() => {
