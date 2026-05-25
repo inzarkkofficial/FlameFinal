@@ -16,6 +16,7 @@ const MAX_POST_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_STORY_MEDIA_BYTES = MAX_POST_MEDIA_BYTES;
 const MAX_STORY_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_INLINE_MESSAGE_MEDIA_BYTES = 1024 * 1024;
+const MESSAGE_FAVORITES_STORAGE_KEY = "flame-message-favorites";
 const MESSAGE_FILE_MIME_TYPES = new Set([
   "application/pdf",
   "application/msword",
@@ -757,7 +758,12 @@ export default function FlameApp() {
   const matchedProfile = matchedRecord ? profileForMatch(matchedRecord) : null;
 
   return (
-    <AppSurface light={light} mode="app-mode" homeActive={!chatWith && tab === "home"}>
+    <AppSurface
+      light={light}
+      mode="app-mode"
+      homeActive={!chatWith && tab === "home"}
+      className={chatWith ? "conversation-active" : ""}
+    >
       <AnimatePresence mode="wait">
         {!chatWith ? (
           <PageFrame key={tab} routeKey={tab}>
@@ -891,6 +897,7 @@ export default function FlameApp() {
             {tab === "messages" && (
               <MessagesScreen
                 state={state}
+                typingByProfile={typingByProfile}
                 onOpenChat={openChatWith}
                 onArchiveConversation={archiveConversation}
                 onDeleteConversation={deleteConversation}
@@ -939,6 +946,7 @@ export default function FlameApp() {
               <SettingsScreen
                 light={light}
                 setLight={setAppLight}
+                auth={state.auth}
                 user={state.user}
                 privacy={state.privacy}
                 onEditProfile={() => navigateTo("edit-profile")}
@@ -998,7 +1006,14 @@ export default function FlameApp() {
             )}
           </PageFrame>
         ) : (
-          <PageFrame key={`chat-${chatWith}`} routeKey={`chat-${chatWith}`}>
+          <PageFrame key={`chat-${chatWith}`} routeKey={`chat-${chatWith}`} className="conversation-page-frame">
+            <div className="messaging-workspace">
+              <ConversationRail
+                state={state}
+                activeProfileId={chatWith}
+                typingByProfile={typingByProfile}
+                onOpenChat={openChatWith}
+              />
             {matchedRecord ? (
               <ChatScreen
                 profile={matchedProfile}
@@ -1084,6 +1099,7 @@ export default function FlameApp() {
                 <EmptyState title="Conversation unavailable" subtitle="Go back to messages and try opening this match again." />
               </section>
             )}
+            </div>
           </PageFrame>
         )}
       </AnimatePresence>
@@ -1092,10 +1108,12 @@ export default function FlameApp() {
         <span />
       </div>
 
-      {!chatWith && (
-          <BottomNav
-            tab={profileTabs.has(tab) ? "profile" : settingsTabs.has(tab) ? "settings" : tab}
-            setTab={navigateTo}
+      <BottomNav
+            tab={chatWith ? "messages" : profileTabs.has(tab) ? "profile" : settingsTabs.has(tab) ? "settings" : tab}
+            setTab={(nextTab) => {
+              if (chatWith) setChatWith(null);
+              navigateTo(nextTab);
+            }}
             unread={state.matches.reduce(
               (count, match) =>
                 match.archivedAt || match.deletedAt
@@ -1104,10 +1122,10 @@ export default function FlameApp() {
               0
             )}
             onHomeRefresh={refreshHomeFeed}
+            user={state.user}
             onNotifications={openNotifications}
             onLogout={logoutFromNav}
           />
-      )}
 
       <AnimatePresence>
         {(menuOpen || notifOpen) && (
@@ -1680,6 +1698,7 @@ function HomeScreen({
   const [editingPostId, setEditingPostId] = useState("");
   const [editPostText, setEditPostText] = useState("");
   const [activeSharePost, setActiveSharePost] = useState("");
+  const [feedMode, setFeedMode] = useState("latest");
   const imageInput = useRef(null);
   const videoInput = useRef(null);
   const feed = state.feed || [];
@@ -1697,6 +1716,19 @@ function HomeScreen({
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [feed, searchQuery]);
+  const presentedFeed = useMemo(() => {
+    if (feedMode === "media") return visibleFeed.filter((post) => post.media?.src);
+    if (feedMode === "popular") {
+      return [...visibleFeed].sort((a, b) => {
+        const activityFor = (post) =>
+          Object.values(post.reactionCounts || {}).reduce((sum, count) => sum + Number(count || 0), 0)
+          + Number(post.commentCount || post.comments?.length || 0)
+          + Number(post.shareCount || 0);
+        return activityFor(b) - activityFor(a);
+      });
+    }
+    return visibleFeed;
+  }, [feedMode, visibleFeed]);
 
   useEffect(() => {
     const id = window.setTimeout(() => setFeedReady(true), 320);
@@ -2103,6 +2135,36 @@ function HomeScreen({
 
       <div className="home-desktop-layout">
         <div className="home-feed-column">
+          <section className="home-community-composer" aria-label="Create and filter posts">
+            <button
+              type="button"
+              className="home-composer-prompt"
+              onClick={() => {
+                setComposerOpen(true);
+                setSearchOpen(false);
+              }}
+            >
+              <img src={state.user.image || LOGO_SRC} alt="" />
+              <span>Share a moment, thought, or date-night update...</span>
+              <PlusIcon />
+            </button>
+            <nav className="feed-mode-tabs" aria-label="Feed view">
+              {[
+                { id: "latest", label: "Latest" },
+                { id: "popular", label: "Popular" },
+                { id: "media", label: "Photos & video" }
+              ].map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={feedMode === item.id ? "active" : ""}
+                  onClick={() => setFeedMode(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </section>
           <div className="feed-list">
         {!feedReady || (feedLoading && feed.length === 0 && !feedWaitExpired) ? (
           Array.from({ length: 3 }).map((_, index) => (
@@ -2110,18 +2172,18 @@ function HomeScreen({
               <FeedSkeleton />
             </div>
           ))
-        ) : visibleFeed.length === 0 ? (
+        ) : presentedFeed.length === 0 ? (
           <div className="feed-slide feed-empty-slide">
             <EmptyState
-              title={feedLoading ? "Loading latest posts" : searchQuery ? "No posts found" : "No posts yet"}
-              subtitle={feedLoading ? "Your feed will appear here shortly." : searchQuery ? "Try another search or browse the full feed." : "Post a message, photo, or video to start the home feed."}
+              title={feedLoading ? "Loading latest posts" : searchQuery ? "No posts found" : feedMode === "media" ? "No media posts yet" : "No posts yet"}
+              subtitle={feedLoading ? "Your feed will appear here shortly." : searchQuery ? "Try another search or browse the full feed." : feedMode === "media" ? "Switch back to Latest or share the first photo or video." : "Post a message, photo, or video to start the home feed."}
             />
             <button type="button" className="cta compact empty-post-btn" onClick={() => setComposerOpen(true)}>
               Create post
             </button>
           </div>
         ) : (
-          visibleFeed.map((post) => {
+          presentedFeed.map((post) => {
             const totalReactions = Object.values(post.reactionCounts || {}).reduce((sum, count) => sum + count, 0);
             const comments = post.comments || [];
             const reactors = post.reactionUsers || [];
@@ -2607,6 +2669,14 @@ function HomeDesktopAside({ state, feed = [], loading = false, onOpenProfile, on
   );
   const totalComments = feed.reduce((sum, post) => sum + Number(post.commentCount || post.comments?.length || 0), 0);
   const recentPosts = feed.slice(0, 3);
+  const trendingTags = Array.from(
+    feed.reduce((counts, post) => {
+      (post.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
+      return counts;
+    }, new Map()).entries()
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4);
 
   return (
     <aside className="home-desktop-aside home-insights" aria-label="Home dashboard">
@@ -2706,6 +2776,27 @@ function HomeDesktopAside({ state, feed = [], loading = false, onOpenProfile, on
             <p className="home-side-empty">Your contacts will show here.</p>
           )}
         </div>
+      </section>
+
+      <section className="home-side-card home-trends-card">
+        <div className="home-side-card-title">
+          <span className="side-card-icon flame">
+            <FlameIcon />
+          </span>
+          <b>Trending topics</b>
+        </div>
+        {trendingTags.length > 0 ? (
+          <div className="home-trend-list">
+            {trendingTags.map(([tag, count]) => (
+              <span key={tag}>
+                <b>#{tag}</b>
+                <small>{count} {count === 1 ? "post" : "posts"}</small>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="home-side-empty">Topics rise as your community posts.</p>
+        )}
       </section>
     </aside>
   );
@@ -3067,6 +3158,7 @@ function SwipeCard({ profile, isTop, offset, forced, onSwipe, onViewProfile }) {
 
 function MessagesScreen({
   state,
+  typingByProfile = {},
   onOpenChat,
   onArchiveConversation,
   onDeleteConversation,
@@ -3086,12 +3178,29 @@ function MessagesScreen({
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [viewingStory, setViewingStory] = useState(null);
   const [storyClock, setStoryClock] = useState(Date.now());
+  const [favorites, setFavorites] = useState(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(MESSAGE_FAVORITES_STORAGE_KEY) || "[]");
+      return new Set(Array.isArray(saved) ? saved : []);
+    } catch {
+      return new Set();
+    }
+  });
   const searchInputRef = useRef(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setStoryClock(Date.now()), 30000);
     return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MESSAGE_FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(favorites)));
+    } catch {
+      // Favorites can still work for this session if storage is unavailable.
+    }
+  }, [favorites]);
 
   const storyItems = useMemo(
     () => {
@@ -3171,13 +3280,22 @@ function MessagesScreen({
         if (filter === "unread") return unreadCount > 0;
         if (filter === "online") return profile.online;
         if (filter === "media") return hasMedia;
+        if (filter === "favorites") return favorites.has(profile.id);
         return true;
       })
       .filter(({ profile, last }) => {
         if (!q) return true;
         return profile.name.toLowerCase().includes(q) || last?.text.toLowerCase().includes(q);
       });
-  }, [filter, query, sourceMatches]);
+  }, [favorites, filter, query, sourceMatches]);
+
+  const highlightedChat = matches[0] || activeMatches
+    .map((match) => {
+      const profile = profileForMatch(match);
+      const messages = Array.isArray(match.messages) ? match.messages : [];
+      return profile ? { match, profile, last: messages[messages.length - 1] } : null;
+    })
+    .filter(Boolean)[0];
 
   const requestNotifications = async () => {
     if (typeof Notification === "undefined") return;
@@ -3196,8 +3314,20 @@ function MessagesScreen({
     await onDeleteConversation?.(profileId);
   };
 
+  const toggleFavorite = (profileId) => {
+    setFavorites((current) => {
+      const next = new Set(current);
+      if (next.has(profileId)) next.delete(profileId);
+      else next.add(profileId);
+      return next;
+    });
+    setOpenConversationMenu("");
+  };
+
   return (
     <section className="screen messages-screen" aria-label="Messages">
+      <div className="messages-inbox-layout">
+        <div className="messages-list-pane">
       <header className="messages-premium-header">
         <div className="messages-brand" aria-label="Flame Messages">
           <img src={LOGO_SRC} alt="" />
@@ -3243,6 +3373,7 @@ function MessagesScreen({
         <nav className="messages-filter-chips" aria-label="Filter messages">
           {[
             { id: "all", label: "All" },
+            { id: "favorites", label: "Favorites" },
             { id: "unread", label: "Unread" },
             { id: "online", label: "Online" },
             { id: "media", label: "Media" },
@@ -3314,8 +3445,9 @@ function MessagesScreen({
           {matches.map(({ match, profile, last, unreadCount }) => {
             const unread = unreadCount > 0;
             const hasStory = storyProfileIds.has(profile.id);
+            const typing = Boolean(typingByProfile[profile.id]);
             return (
-              <li key={match.profileId} className={`conversation-item ${unread ? "unread" : ""}`}>
+              <li key={match.profileId} className={`conversation-item ${unread ? "unread" : ""} ${favorites.has(profile.id) ? "favorite" : ""}`}>
                 <button className="chat" onClick={() => onOpenChat(profile.id)} aria-label={`Open chat with ${profile.name}`}>
                   <span
                     className={`profile-avatar-frame ${hasStory ? "has-story" : ""} ${profile.online ? "online" : ""}`}
@@ -3341,7 +3473,13 @@ function MessagesScreen({
                       <span>{relativeTime(last?.ts ?? match.matchedAt)}</span>
                     </div>
                     <div className={`r2 ${last ? "" : "muted"}`}>
-                      {last ? <span>{last.from === "me" ? "You: " : ""}{last.text || "Attachment"}</span> : <em>Say hi</em>}
+                      {typing ? (
+                        <span className="conversation-typing">Typing <i /><i /><i /></span>
+                      ) : last ? (
+                        <span>{last.from === "me" ? "You: " : ""}{last.text || "Attachment"}</span>
+                      ) : (
+                        <em>Say hi</em>
+                      )}
                       {unread && <span className="badge-pill">{unreadCount > 1 ? unreadCount : "New"}</span>}
                     </div>
                   </div>
@@ -3356,6 +3494,9 @@ function MessagesScreen({
                 </button>
                 {openConversationMenu === match.profileId && (
                   <div className="conversation-menu">
+                    <button type="button" onClick={() => toggleFavorite(profile.id)}>
+                      {favorites.has(profile.id) ? "Remove favorite" : "Add to favorites"}
+                    </button>
                     <button type="button" onClick={() => archiveConversation(profile.id, !match.archivedAt)}>
                       {match.archivedAt ? "Unarchive" : "Archive"}
                     </button>
@@ -3369,6 +3510,40 @@ function MessagesScreen({
           })}
         </ul>
       )}
+        </div>
+        <aside className="messages-preview-panel" aria-label="Conversation preview">
+          {highlightedChat ? (
+            <>
+              <div className="messages-preview-head">
+                <span className="preview-avatar-wrap">
+                  <img src={highlightedChat.profile.image} alt="" />
+                  {highlightedChat.profile.online && <i />}
+                </span>
+                <p>{highlightedChat.profile.online ? "Active now" : activityText(highlightedChat.profile)}</p>
+                <h2>{highlightedChat.profile.name}</h2>
+                <small>{highlightedChat.profile.bio || "Ready for a new conversation."}</small>
+              </div>
+              <button type="button" className="preview-open-chat" onClick={() => onOpenChat(highlightedChat.profile.id)}>
+                <MessageIcon />
+                <span>Open conversation</span>
+              </button>
+              <div className="messages-preview-last">
+                <span>Latest message</span>
+                <p>{highlightedChat.last?.text || "Start the conversation with a thoughtful hello."}</p>
+                {highlightedChat.last?.ts && <small>{relativeTimeLong(highlightedChat.last.ts)}</small>}
+              </div>
+              <div className="messages-capability-grid">
+                <span><PhoneIcon /><b>Voice calls</b></span>
+                <span><VideoIcon /><b>Video calls</b></span>
+                <span><ImageIcon /><b>Media</b></span>
+                <span><SmileIcon /><b>Reactions</b></span>
+              </div>
+            </>
+          ) : (
+            <EmptyState title="Your conversations" subtitle="New matches and messages will appear here." />
+          )}
+        </aside>
+      </div>
       <AnimatePresence>
         {storyComposerOpen && (
           <StoryComposer
@@ -3413,6 +3588,99 @@ function MessagesScreen({
         )}
       </AnimatePresence>
     </section>
+  );
+}
+
+function ConversationRail({ state, activeProfileId, typingByProfile = {}, onOpenChat }) {
+  const [query, setQuery] = useState("");
+  const conversations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return state.matches
+      .filter((match) => !match.deletedAt && !match.blockedAt)
+      .map((match) => {
+        const profile = profileForMatch(match);
+        const messages = Array.isArray(match.messages) ? match.messages : [];
+        const last = messages[messages.length - 1];
+        const unreadCount = messages.filter((message) => message.from === "them" && !message.readAt).length;
+        return profile ? { match, profile, last, unreadCount } : null;
+      })
+      .filter(Boolean)
+      .filter(({ profile, last }) => (
+        !normalizedQuery ||
+        profile.name.toLowerCase().includes(normalizedQuery) ||
+        String(last?.text || "").toLowerCase().includes(normalizedQuery)
+      ));
+  }, [query, state.matches]);
+  const online = conversations.filter(({ match, profile }) => !match.archivedAt && profile.online).slice(0, 5);
+  const recent = conversations.filter(({ match }) => !match.archivedAt);
+  const archived = conversations.filter(({ match }) => match.archivedAt);
+  const totalUnread = recent.reduce((total, item) => total + item.unreadCount, 0);
+
+  const renderRow = ({ match, profile, last, unreadCount }) => {
+    const typing = Boolean(typingByProfile[profile.id]);
+    return (
+      <button
+        key={profile.id}
+        type="button"
+        className={`rail-chat-row ${profile.id === activeProfileId ? "active" : ""} ${unreadCount ? "unread" : ""}`}
+        onClick={() => onOpenChat(profile.id)}
+      >
+        <span className={`rail-avatar ${profile.online ? "online" : ""}`}>
+          <img src={profile.image} alt="" />
+          {profile.online && <i />}
+        </span>
+        <span className="rail-chat-copy">
+          <b>{profile.name}</b>
+          {typing ? (
+            <small className="conversation-typing">Typing <i /><i /><i /></small>
+          ) : (
+            <small>{last?.text || (match.archivedAt ? "Archived conversation" : "Say hello")}</small>
+          )}
+        </span>
+        {unreadCount > 0 && <em>{unreadCount}</em>}
+      </button>
+    );
+  };
+
+  return (
+    <aside className="conversation-rail" aria-label="Conversations">
+      <div className="conversation-rail-head">
+        <span>
+          <h2>Messages</h2>
+          <small>{totalUnread ? `${totalUnread} unread messages` : "All caught up"}</small>
+        </span>
+        {totalUnread > 0 && <b>{totalUnread}</b>}
+      </div>
+      <label className="rail-search">
+        <SearchIcon />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chats" />
+      </label>
+      {online.length > 0 && (
+        <section className="rail-active-section">
+          <div className="rail-section-title">Active now</div>
+          <div className="rail-active-avatars">
+            {online.map(({ profile }) => (
+              <button type="button" key={profile.id} onClick={() => onOpenChat(profile.id)} aria-label={`Message ${profile.name}`}>
+                <img src={profile.image} alt="" />
+                <span>{profile.name}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      <section className="rail-conversation-section">
+        <div className="rail-section-title">Recent chats</div>
+        <div className="rail-chat-list">
+          {recent.length > 0 ? recent.map(renderRow) : <p>No active chats found.</p>}
+        </div>
+      </section>
+      {archived.length > 0 && (
+        <section className="rail-conversation-section archived">
+          <div className="rail-section-title">Archived</div>
+          <div className="rail-chat-list">{archived.map(renderRow)}</div>
+        </section>
+      )}
+    </aside>
   );
 }
 
@@ -5156,6 +5424,7 @@ function ChatScreen({
     }
     setReplyingTo(null);
     setText("");
+    if (inputRef.current) inputRef.current.style.height = "";
     setActiveAction(null);
   };
 
@@ -5776,11 +6045,21 @@ function ChatScreen({
         <button type="button" className="icon-btn round" onClick={() => fileInput.current?.click()} aria-label="Attach file">
           <PaperclipIcon />
         </button>
-        <input
+        <textarea
           ref={inputRef}
-          type="text"
+          rows="1"
           value={text}
-          onChange={(event) => updateText(event.target.value)}
+          onChange={(event) => {
+            updateText(event.target.value);
+            event.currentTarget.style.height = "auto";
+            event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 112)}px`;
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           onBlur={() => setTypingStatus(false)}
           placeholder={editingMessage ? "Edit your message..." : `Message ${profile.name}...`}
           aria-label={`Message ${profile.name}`}
@@ -5835,6 +6114,17 @@ function shortRoomId(id = "") {
   return compact || "room";
 }
 
+const ROOM_CATEGORIES = ["All", "Chill", "Gaming", "Music", "Study", "Dating", "Friendship", "Open Talk", "Technology"];
+
+function roomCategory(room) {
+  const copy = `${room?.name || ""} ${room?.description || ""}`.toLowerCase();
+  const match = ROOM_CATEGORIES.slice(1).find((category) =>
+    copy.includes(category.toLowerCase().replace(" ", ""))
+    || copy.includes(category.toLowerCase())
+  );
+  return match || "Open Talk";
+}
+
 function GroupRoomsScreen({
   rooms = [],
   user,
@@ -5856,10 +6146,21 @@ function GroupRoomsScreen({
   const [busyAction, setBusyAction] = useState("");
   const [roomError, setRoomError] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [roomQuery, setRoomQuery] = useState("");
+  const [category, setCategory] = useState("All");
   const activeRoom = rooms.find((room) => room.id === activeRoomId) || null;
   const viewerSeat = activeRoom?.seats?.find((seat) => seat.user?.id === viewerId) || null;
   const firstAvailableSeat = activeRoom?.seats?.find((seat) => seat.available) || null;
   const featuredRoom = activeRoom || rooms.find((room) => room.joined) || rooms[0] || null;
+  const activeListenerCount = rooms.reduce((total, room) => total + Number(room.currentMembers || 0), 0);
+  const visibleRooms = useMemo(() => {
+    const search = roomQuery.trim().toLowerCase();
+    return rooms.filter((room) => {
+      const matchesCategory = category === "All" || roomCategory(room) === category;
+      const matchesSearch = !search || `${room.name} ${room.description} ${room.creator?.name || ""}`.toLowerCase().includes(search);
+      return matchesCategory && matchesSearch;
+    });
+  }, [category, roomQuery, rooms]);
 
   useEffect(() => {
     onRefresh?.();
@@ -6086,13 +6387,18 @@ function GroupRoomsScreen({
         <>
           <header className="rooms-landing-hero">
             <div>
-              <span className="rooms-kicker">Audio hangouts</span>
-              <h1>Audio Group Rooms</h1>
-              <p>Talk. Connect. Make new friends on Flame.</p>
+              <span className="rooms-kicker">Live social audio</span>
+              <h1>Find your room tonight</h1>
+              <p>Drop into live conversations, take a seat, and connect through voice in real time.</p>
               <button type="button" className="room-create-hero-btn" onClick={() => setCreateOpen(true)}>
                 <PlusIcon />
                 <span>Create Room</span>
               </button>
+              <div className="rooms-hero-stats">
+                <span><b>{rooms.length}</b><small>Live rooms</small></span>
+                <span><b>{activeListenerCount}</b><small>Listening now</small></span>
+                <span><b>{rooms.filter((room) => room.joined).length}</b><small>Joined</small></span>
+              </div>
             </div>
             <div className="room-hero-art" aria-hidden="true">
               <span className="hero-mic"><MicIcon /></span>
@@ -6102,17 +6408,37 @@ function GroupRoomsScreen({
             </div>
           </header>
 
+          <div className="rooms-community-layout">
           <section className="rooms-list-page" aria-label="Available rooms">
             <div className="rooms-list-head">
-              <span>Room List</span>
+              <span>Discover rooms</span>
               <button type="button" onClick={onRefresh}>Refresh</button>
             </div>
+            <label className="rooms-search">
+              <SearchIcon />
+              <input
+                value={roomQuery}
+                onChange={(event) => setRoomQuery(event.target.value)}
+                placeholder="Search rooms or hosts"
+                aria-label="Search rooms or hosts"
+              />
+              {roomQuery && <button type="button" onClick={() => setRoomQuery("")} aria-label="Clear room search"><XIcon /></button>}
+            </label>
+            <nav className="rooms-category-row" aria-label="Room categories">
+              {ROOM_CATEGORIES.map((item) => (
+                <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>
+                  {item}
+                </button>
+              ))}
+            </nav>
             {roomError && <div className="room-error">{roomError}</div>}
             {rooms.length === 0 ? (
               <div className="rooms-empty">No rooms yet. Create the first hangout.</div>
+            ) : visibleRooms.length === 0 ? (
+              <div className="rooms-empty">No rooms match this search. Try another category.</div>
             ) : (
               <div className="rooms-card-list">
-                {rooms.map((room) => (
+                {visibleRooms.map((room) => (
                   <article key={room.id} className="room-list-card">
                     <button
                       type="button"
@@ -6126,9 +6452,15 @@ function GroupRoomsScreen({
                         <img src={room.creator?.image || LOGO_SRC} alt="" />
                       </span>
                       <span>
+                        <span className="room-card-flags">
+                          <em className="live">Live</em>
+                          <em>{roomCategory(room)}</em>
+                        </span>
                         <b>{room.name}</b>
                         <small>{room.description}</small>
-                        <em>{room.currentMembers}/{room.maxMembers} members</em>
+                        <span className="room-host-line">
+                          Hosted by {room.creator?.name || "Flame member"} - {room.currentMembers}/{room.maxMembers} listening
+                        </span>
                       </span>
                     </button>
                     <button
@@ -6144,6 +6476,30 @@ function GroupRoomsScreen({
               </div>
             )}
           </section>
+
+          <aside className="rooms-right-panel" aria-label="Room activity">
+            <section>
+              <span className="rooms-kicker">Live now</span>
+              <h2>{activeListenerCount || "Be first"} listening</h2>
+              <p>Audio conversations update live as friends join and take seats.</p>
+            </section>
+            {featuredRoom && (
+              <section className="rooms-featured-card">
+                <span>Featured room</span>
+                <b>{featuredRoom.name}</b>
+                <small>{featuredRoom.description}</small>
+                <div className="room-waveform" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+                <button type="button" onClick={() => joinRoom(featuredRoom)}>
+                  {featuredRoom.joined ? "Return to room" : "Join room"}
+                </button>
+              </section>
+            )}
+            <section className="rooms-safety-note">
+              <b>Community standard</b>
+              <p>Be respectful, let speakers finish, and use reactions to support the room.</p>
+            </section>
+          </aside>
+          </div>
 
           <section className="rooms-feature-strip" aria-label="Room features">
             {[
@@ -6215,6 +6571,7 @@ function GroupRoomsScreen({
 function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile, onUpdateProfile }) {
   const backgroundInput = useRef(null);
   const mediaInput = useRef(null);
+  const [previewPhoto, setPreviewPhoto] = useState("");
   const media = user.media || [];
   const personalInterests = Array.isArray(user.interests) ? user.interests.filter(Boolean) : [];
   const userFirstName = (user.fullName || "Your").split(" ")[0];
@@ -6233,6 +6590,13 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
       Math.min(media.length, 4) * 5
   );
   const userPosts = posts.filter((post) => post.author?.name === userFirstName || post.author?.id === user.id).slice(0, 3);
+  const profileSuggestions = [
+    !user.bio && "Write an About Me introduction",
+    media.length < 3 && "Add more photos to your gallery",
+    !user.interestedIn && "Share your dating intention",
+    personalInterests.length < 3 && "Select a few interests",
+    !user.work && !user.school && "Add work or education"
+  ].filter(Boolean).slice(0, 3);
 
   const readImage = (file, onReady) => {
     if (!file) return;
@@ -6276,9 +6640,12 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
         <section className="profile-hero-panel" style={profileBackgroundStyle(user.background)}>
           <div className="profile-hero-overlay">
             <div className="profile-hero-main">
-              <img src={user.image || LOGO_SRC} alt="Profile" />
+              <span className="profile-hero-avatar">
+                <img src={user.image || LOGO_SRC} alt="Profile" />
+                <i aria-label="Profile active" />
+              </span>
               <div>
-                <span className="profile-kicker">Public profile</span>
+                <span className="profile-kicker">Public profile <b className="profile-live-badge">Live</b></span>
                 <h1>
                   {user.fullName || "Flame user"} <span>, {user.age || 18}</span>
                 </h1>
@@ -6291,6 +6658,10 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
               </div>
             </div>
             <div className="profile-hero-actions">
+              <div className="profile-completion-ring" style={{ "--completion": `${profileScore}%` }}>
+                <b>{profileScore}%</b>
+                <small>Complete</small>
+              </div>
               <button type="button" onClick={onEditProfile}>
                 <UserIcon />
                 <span>Edit details</span>
@@ -6328,6 +6699,14 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
               <span>
                 <b>{media.length}</b>
                 <small>Photos</small>
+              </span>
+              <span>
+                <b>{userPosts.length}</b>
+                <small>Posts</small>
+              </span>
+              <span>
+                <b>{personalInterests.length}</b>
+                <small>Interests</small>
               </span>
             </div>
             <div className="profile-progress">
@@ -6368,6 +6747,23 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
             </div>
           </section>
 
+          <section className="profile-panel profile-about-panel">
+            <div className="profile-panel-head">
+              <span>About me</span>
+              <b>{user.interestedIn ? "Dating ready" : "Add intentions"}</b>
+            </div>
+            <p className="profile-about-copy">{user.bio || "Tell matches what kind of connection and conversations you value."}</p>
+            <div className="profile-interest-cloud">
+              {personalInterests.length > 0
+                ? personalInterests.map((interest) => <span key={interest}>{interest}</span>)
+                : <small>Add interests to reveal more of your personality.</small>}
+            </div>
+            <div className="profile-intentions">
+              <span><b>Looking for</b><small>{user.interestedIn || "Not shared"}</small></span>
+              <span><b>Location</b><small>{user.location || "Nearby"}</small></span>
+            </div>
+          </section>
+
           <section className="profile-panel profile-photos-panel">
             <div className="profile-panel-head">
               <span>Photos</span>
@@ -6376,7 +6772,9 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
             <div className="profile-photo-grid">
               {media.map((src, index) => (
                 <div key={`${src}-${index}`} className="profile-photo-tile">
-                  <img src={src} alt={`Profile media ${index + 1}`} />
+                  <button type="button" className="profile-photo-view" onClick={() => setPreviewPhoto(src)} aria-label={`Preview profile media ${index + 1}`}>
+                    <img src={src} alt={`Profile media ${index + 1}`} />
+                  </button>
                   <div>
                     <button type="button" onClick={() => makeProfilePhoto(src)}>{src === user.image ? "Main" : "Use"}</button>
                     <button type="button" onClick={() => removeMedia(index)}>Remove</button>
@@ -6409,8 +6807,43 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
               <p className="profile-empty-note">Your latest posts will show here.</p>
             )}
           </section>
+
+          <section className="profile-panel profile-insights-panel">
+            <div className="profile-panel-head">
+              <span>Profile insights</span>
+              <b>{profileSuggestions.length ? "Recommendations" : "Ready"}</b>
+            </div>
+            {profileSuggestions.length ? (
+              <div className="profile-suggestions">
+                {profileSuggestions.map((suggestion) => (
+                  <button type="button" key={suggestion} onClick={onEditProfile}>
+                    <PlusIcon />
+                    <span>{suggestion}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="profile-empty-note">Your core profile details are complete and ready to be discovered.</p>
+            )}
+          </section>
         </div>
       </div>
+      <AnimatePresence>
+        {previewPhoto && (
+          <motion.div
+            className="profile-photo-modal"
+            role="dialog"
+            aria-label="Profile photo preview"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPreviewPhoto("")}
+          >
+            <button type="button" aria-label="Close photo preview" onClick={() => setPreviewPhoto("")}><XIcon /></button>
+            <img src={previewPhoto} alt="Profile media preview" onClick={(event) => event.stopPropagation()} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -6418,6 +6851,7 @@ function ProfileScreen({ matchCount, likedCount, user, posts = [], onEditProfile
 function SettingsScreen({
   light,
   setLight,
+  auth,
   user,
   privacy,
   onEditProfile,
@@ -6433,9 +6867,14 @@ function SettingsScreen({
       <div className="settings-page-shell">
         <header className="settings-dashboard-head">
           <div>
-            <span>Settings</span>
-            <h1>Account controls</h1>
-            <p>Keep profile editing, privacy, app preferences, and support separate from your public profile.</p>
+            <span>Account center</span>
+            <h1>Settings & privacy</h1>
+            <p>Control your identity, visibility, notifications, and security from one polished workspace.</p>
+          </div>
+          <div className="settings-hero-profile">
+            <img src={user.image || LOGO_SRC} alt="" />
+            <span><b>{user.fullName || "Flame user"}</b><small>Profile controls</small></span>
+            <button type="button" onClick={onEditProfile}>Edit profile</button>
           </div>
         </header>
 
@@ -6461,6 +6900,10 @@ function SettingsScreen({
               <span>Privacy settings</span>
               <b>{privacy.incognito ? "Incognito" : "Review"}</b>
             </button>
+            <div className="settings-meta-row">
+              <span>Email</span>
+              <b>{auth?.email || "Connected account"}</b>
+            </div>
           </section>
 
           <section className="settings-panel">
@@ -6478,6 +6921,48 @@ function SettingsScreen({
             <button className="settings-row" type="button" onClick={onPrivacy} aria-pressed={privacy.incognito}>
               <span>Incognito</span>
               <span className={`toggle ${privacy.incognito ? "on" : ""}`} />
+            </button>
+          </section>
+
+          <section className="settings-panel settings-security-panel">
+            <div className="settings-panel-title">
+              <span>Privacy & security</span>
+              <b className="security-pill">{privacy.discoverable ? "Protected" : "Private"}</b>
+            </div>
+            <div className="settings-status-grid">
+              <button type="button" onClick={onPrivacy}>
+                <b>Profile visibility</b>
+                <small>{privacy.discoverable ? "Discoverable" : "Hidden"}</small>
+              </button>
+              <button type="button" onClick={onPrivacy}>
+                <b>Online status</b>
+                <small>{privacy.showOnline ? "Visible" : "Hidden"}</small>
+              </button>
+              <button type="button" onClick={onPrivacy}>
+                <b>Read receipts</b>
+                <small>{privacy.readReceipts ? "Enabled" : "Hidden"}</small>
+              </button>
+              <button type="button" onClick={onPrivacy}>
+                <b>Location scope</b>
+                <small>{privacy.locationScope || "Nearby"}</small>
+              </button>
+            </div>
+          </section>
+
+          <section className="settings-panel settings-device-panel">
+            <div className="settings-panel-title">
+              <span>Session & devices</span>
+            </div>
+            <div className="settings-device-state">
+              <span className="device-indicator" />
+              <div>
+                <b>Current session active</b>
+                <small>{auth?.lastLoginAt ? `Signed in ${relativeTimeLong(auth.lastLoginAt)}` : "Authenticated securely"}</small>
+              </div>
+            </div>
+            <button className="settings-row" type="button" onClick={onPrivacy}>
+              <span>Review account protection</span>
+              <b>Open</b>
             </button>
           </section>
 
@@ -7356,7 +7841,7 @@ function EditProfile({ user, profiles = [], onSave, onCancel }) {
   );
 }
 
-const BottomNav = memo(function BottomNav({ tab, setTab, unread, onHomeRefresh, onNotifications, onLogout }) {
+const BottomNav = memo(function BottomNav({ tab, setTab, unread, user, onHomeRefresh, onNotifications, onLogout }) {
   const lastHomeTap = useRef(0);
   const items = [
     { id: "home", label: "Home", icon: <HomeIcon /> },
@@ -7373,6 +7858,10 @@ const BottomNav = memo(function BottomNav({ tab, setTab, unread, onHomeRefresh, 
     <nav className="bottom-nav" aria-label="Primary">
       <div className="nav-rail-brand" aria-hidden="true">
         <img src={LOGO_SRC} alt="" />
+      </div>
+      <div className="nav-rail-user" aria-hidden="true">
+        <img src={user?.image || LOGO_SRC} alt="" />
+        <span>{(user?.fullName || "You").split(" ")[0]}</span>
       </div>
       {items.map((item) => {
         const targetTab = item.target || item.id;

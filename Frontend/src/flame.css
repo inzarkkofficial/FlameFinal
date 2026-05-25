@@ -18252,3 +18252,1373 @@ body {
     min-width: 40px;
   }
 }
+
+/* Premium social workspace enhancements. These consume the existing Flame tokens
+   so account theme choices and the established palette remain authoritative. */
+.flame-app.app-mode :where(
+  .messages-command-card,
+  .messages-preview-panel,
+  .conversation-rail,
+  .home-community-composer,
+  .rooms-right-panel > section,
+  .profile-about-panel,
+  .profile-insights-panel,
+  .settings-security-panel,
+  .settings-device-panel
+) {
+  color: var(--fg);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    var(--card);
+  border: 1px solid rgba(255, 107, 154, 0.2);
+  border-radius: 22px;
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.flame-app.app-mode :where(
+  .messages-command-card,
+  .messages-preview-panel,
+  .conversation-rail,
+  .rooms-landing-hero,
+  .rooms-list-page,
+  .rooms-feature-strip,
+  .room-stage-full,
+  .room-create-panel,
+  .room-list-card,
+  .profile-panel,
+  .settings-panel,
+  .chat
+) {
+  color: var(--fg) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+    var(--card) !important;
+  border-color: rgba(255, 107, 154, 0.2) !important;
+  border-radius: 22px !important;
+}
+
+.flame-app.app-mode .settings-panel .settings-row {
+  color: var(--fg) !important;
+}
+
+.flame-app.app-mode .profile-panel :where(
+  .profile-stat-grid span,
+  .profile-detail-list span,
+  .profile-post-list article,
+  .background-preset-grid button
+) {
+  color: var(--fg) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+}
+
+.flame-app.app-mode :where(
+  .messages-command-card,
+  .messages-preview-panel,
+  .conversation-rail,
+  .home-community-composer,
+  .rooms-right-panel > section,
+  .profile-panel,
+  .settings-panel
+):hover {
+  border-color: rgba(255, 107, 154, 0.3);
+}
+
+.flame-app.app-mode .nav-badge {
+  animation: premium-badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes premium-badge-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 63, 104, 0.32);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 63, 104, 0);
+  }
+}
+
+/* Messages */
+.flame-app .messages-inbox-layout,
+.flame-app .messages-list-pane {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.flame-app .messages-preview-panel,
+.flame-app .conversation-rail {
+  display: none;
+}
+
+.flame-app .conversation-typing {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary) !important;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.flame-app .conversation-typing i {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: typing-dot 1s ease-in-out infinite;
+}
+
+.flame-app .conversation-typing i:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.flame-app .conversation-typing i:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+.flame-app .conversation-item.favorite .chat {
+  border-color: rgba(255, 107, 154, 0.34) !important;
+}
+
+.flame-app.app-mode .conversation-item.unread .chat {
+  background:
+    linear-gradient(110deg, rgba(255, 63, 104, 0.12), transparent 54%),
+    var(--card) !important;
+  border-color: rgba(255, 63, 104, 0.42) !important;
+  box-shadow: 0 14px 34px rgba(255, 63, 104, 0.12) !important;
+}
+
+.flame-app .conversation-item.favorite .r1 b::after {
+  content: " Favorite";
+  margin-left: 8px;
+  padding: 3px 7px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 999px;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.flame-app.conversation-active .bottom-nav {
+  display: none !important;
+}
+
+.flame-app .nav-rail-user {
+  display: none;
+}
+
+.flame-app .messaging-workspace {
+  width: 100%;
+  min-height: 100svh;
+}
+
+.flame-app .chat-input textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 112px;
+  padding: 11px 14px;
+  overflow-y: auto;
+  resize: none;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.065);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  outline: none;
+  line-height: 1.45;
+}
+
+.flame-app .chat-input textarea:focus {
+  border-color: rgba(255, 63, 104, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 63, 104, 0.12);
+}
+
+.flame-app .chat-input:focus-within {
+  border-top-color: rgba(255, 63, 104, 0.24);
+}
+
+/* Home feed */
+.flame-app .home-community-composer {
+  display: grid;
+  gap: 14px;
+  margin: 0 14px 16px;
+  padding: 14px;
+}
+
+.flame-app .home-composer-prompt {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  text-align: left;
+}
+
+.flame-app .home-composer-prompt:hover,
+.flame-app .home-composer-prompt:focus-visible {
+  color: var(--fg);
+  border-color: rgba(255, 63, 104, 0.35);
+  background: rgba(255, 63, 104, 0.075);
+}
+
+.flame-app .home-composer-prompt img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border: 2px solid rgba(255, 107, 154, 0.38);
+  border-radius: 50%;
+}
+
+.flame-app .home-composer-prompt span {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .home-composer-prompt svg {
+  width: 18px;
+  height: 18px;
+  color: var(--primary);
+}
+
+.flame-app .feed-mode-tabs {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.flame-app .feed-mode-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.flame-app .feed-mode-tabs button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flame-app .feed-mode-tabs button.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-color: transparent;
+  box-shadow: 0 9px 22px rgba(255, 63, 104, 0.24);
+}
+
+.flame-app .home-trend-list {
+  display: grid;
+  gap: 8px;
+}
+
+.flame-app .home-trend-list span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 12px;
+}
+
+.flame-app .home-trend-list b {
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.flame-app .home-trend-list small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Rooms */
+.flame-app .rooms-community-layout {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.flame-app .rooms-hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.flame-app .rooms-hero-stats span {
+  display: grid;
+  gap: 2px;
+  min-width: 92px;
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 107, 154, 0.18);
+  border-radius: 12px;
+}
+
+.flame-app .rooms-hero-stats b {
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.flame-app .rooms-hero-stats small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.flame-app .rooms-search {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 15px 0 12px;
+  padding: 0 12px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.flame-app .rooms-search:focus-within {
+  color: var(--primary);
+  border-color: rgba(255, 63, 104, 0.46);
+  box-shadow: 0 0 0 3px rgba(255, 63, 104, 0.1);
+}
+
+.flame-app .rooms-search input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0;
+  color: var(--fg);
+  background: transparent !important;
+  border: 0 !important;
+  outline: none;
+}
+
+.flame-app .rooms-search button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+}
+
+.flame-app .rooms-category-row {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 15px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.flame-app .rooms-category-row::-webkit-scrollbar {
+  display: none;
+}
+
+.flame-app .rooms-category-row button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 13px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.flame-app .rooms-category-row button.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-color: transparent;
+}
+
+.flame-app .room-card-flags {
+  display: inline-flex !important;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.flame-app .room-card-flags em {
+  padding: 3px 8px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 9px !important;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.flame-app .room-card-flags em.live {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: rgba(255, 63, 104, 0.27);
+}
+
+.flame-app .room-card-flags em.live::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  background: var(--primary);
+  border-radius: 50%;
+}
+
+.flame-app .room-host-line {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.flame-app .rooms-right-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.flame-app .rooms-right-panel > section {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.flame-app .rooms-right-panel h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.flame-app .rooms-right-panel p,
+.flame-app .rooms-right-panel small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.flame-app .rooms-featured-card > span {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.flame-app .rooms-featured-card button {
+  min-height: 42px;
+  margin-top: 5px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.flame-app .room-waveform {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  height: 26px;
+}
+
+.flame-app .room-waveform i {
+  display: block;
+  width: 4px;
+  height: 11px;
+  background: var(--primary);
+  border-radius: 999px;
+  animation: room-wave 1s ease-in-out infinite alternate;
+}
+
+.flame-app .room-waveform i:nth-child(2),
+.flame-app .room-waveform i:nth-child(4) {
+  height: 24px;
+  animation-delay: .14s;
+}
+
+.flame-app .room-waveform i:nth-child(3) {
+  height: 17px;
+  animation-delay: .25s;
+}
+
+@keyframes room-wave {
+  to {
+    transform: scaleY(.45);
+    opacity: .56;
+  }
+}
+
+/* Profile */
+.flame-app .profile-hero-avatar {
+  position: relative;
+  display: block;
+  width: clamp(94px, 11vw, 132px);
+  height: clamp(94px, 11vw, 132px);
+}
+
+.flame-app .profile-hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--card-solid);
+  border: 4px solid rgba(255, 247, 247, 0.9);
+  border-radius: 26px;
+  box-shadow: 0 16px 36px rgba(255, 63, 104, 0.18);
+}
+
+.flame-app .profile-hero-avatar i {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 15px;
+  height: 15px;
+  background: var(--success);
+  border: 3px solid var(--card-solid);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(66, 211, 123, 0.12);
+}
+
+.flame-app .profile-live-badge {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 4px 8px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 999px;
+  font-size: 9px;
+}
+
+.flame-app .profile-completion-ring {
+  display: grid;
+  place-content: center;
+  gap: 2px;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 6px;
+  background:
+    radial-gradient(circle, var(--card-solid) 59%, transparent 60%),
+    conic-gradient(var(--primary) var(--completion), rgba(255, 255, 255, 0.1) var(--completion));
+  border-radius: 50%;
+  text-align: center;
+}
+
+.flame-app .profile-completion-ring b {
+  color: var(--fg);
+  font-size: 18px;
+}
+
+.flame-app .profile-completion-ring small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.flame-app .profile-about-copy {
+  margin: 0;
+  color: var(--fg);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.flame-app .profile-interest-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.flame-app .profile-interest-cloud span {
+  padding: 7px 10px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border: 1px solid rgba(255, 63, 104, 0.18);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.flame-app .profile-interest-cloud small {
+  color: var(--muted);
+}
+
+.flame-app .profile-intentions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.flame-app .profile-intentions span {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 12px;
+}
+
+.flame-app .profile-intentions b {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.flame-app .profile-intentions small {
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.flame-app .profile-photo-view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.flame-app .profile-photo-tile:hover .profile-photo-view img {
+  transform: scale(1.035);
+}
+
+.flame-app .profile-photo-view img {
+  transition: transform 220ms ease;
+}
+
+.flame-app .profile-suggestions {
+  display: grid;
+  gap: 8px;
+}
+
+.flame-app .profile-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 11px;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+}
+
+.flame-app .profile-suggestions svg {
+  width: 15px;
+  color: var(--primary);
+}
+
+.flame-app .profile-photo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: grid;
+  place-items: center;
+  padding: 60px 18px 20px;
+  background: rgba(8, 4, 7, 0.88);
+  backdrop-filter: blur(14px);
+}
+
+.flame-app .profile-photo-modal img {
+  width: min(700px, 96vw);
+  max-height: calc(100svh - 84px);
+  object-fit: contain;
+  border: 1px solid rgba(255, 107, 154, 0.28);
+  border-radius: 22px;
+  box-shadow: 0 26px 76px rgba(0, 0, 0, 0.46);
+}
+
+.flame-app .profile-photo-modal button {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 50%;
+}
+
+/* Settings */
+.flame-app .settings-dashboard-head {
+  display: grid;
+  gap: 18px;
+}
+
+.flame-app .settings-hero-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.flame-app .settings-hero-profile img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border: 2px solid rgba(255, 107, 154, 0.35);
+  border-radius: 14px;
+}
+
+.flame-app .settings-hero-profile span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.flame-app .settings-hero-profile span b {
+  overflow: hidden;
+  color: var(--fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .settings-hero-profile span small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.flame-app .settings-hero-profile button {
+  min-height: 40px;
+  padding: 0 12px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.flame-app .settings-meta-row {
+  display: grid;
+  gap: 5px;
+  padding: 13px 0 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.flame-app .settings-meta-row b {
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flame-app .security-pill {
+  padding: 5px 9px;
+  color: var(--success);
+  background: rgba(66, 211, 123, 0.12);
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.flame-app .settings-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.flame-app .settings-status-grid button {
+  display: grid;
+  gap: 5px;
+  min-height: 68px;
+  padding: 11px;
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.flame-app .settings-status-grid button:hover {
+  border-color: rgba(255, 63, 104, 0.3);
+  background: var(--primary-soft);
+}
+
+.flame-app .settings-status-grid b {
+  font-size: 11px;
+}
+
+.flame-app .settings-status-grid small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.flame-app .settings-device-state {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  margin: 13px 0 10px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  border-radius: 12px;
+}
+
+.flame-app .settings-device-state div {
+  display: grid;
+  gap: 3px;
+}
+
+.flame-app .settings-device-state b {
+  font-size: 12px;
+}
+
+.flame-app .settings-device-state small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.flame-app .device-indicator {
+  width: 11px;
+  height: 11px;
+  background: var(--success);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(66, 211, 123, 0.13);
+}
+
+@media (min-width: 900px) {
+  .flame-app.conversation-active .bottom-nav {
+    display: grid !important;
+  }
+
+  .flame-app.conversation-active .screen-transition-wrapper {
+    width: 100% !important;
+    min-height: 100svh;
+  }
+
+  .flame-app .messaging-workspace {
+    display: grid;
+    grid-template-columns: clamp(250px, 28vw, 350px) minmax(0, 1fr);
+    gap: 18px;
+    height: 100svh;
+    padding: 16px clamp(16px, 2.4vw, 28px);
+  }
+
+  .flame-app.app-mode .nav-rail-user {
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+    margin: -24px auto 12px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .flame-app.app-mode .nav-rail-user img {
+    width: 42px;
+    height: 42px;
+    object-fit: cover;
+    border: 2px solid rgba(255, 107, 154, 0.4);
+    border-radius: 50%;
+    box-shadow: 0 8px 20px rgba(255, 63, 104, 0.17);
+  }
+
+  .flame-app .conversation-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 17px;
+    height: calc(100svh - 32px);
+    padding: 18px 14px;
+    overflow: hidden;
+  }
+
+  .flame-app .conversation-rail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 5px;
+  }
+
+  .flame-app .conversation-rail-head span {
+    display: grid;
+    gap: 4px;
+  }
+
+  .flame-app .conversation-rail-head h2 {
+    margin: 0;
+    font-size: 23px;
+  }
+
+  .flame-app .conversation-rail-head small,
+  .flame-app .rail-section-title,
+  .flame-app .rail-chat-list > p {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+  .flame-app .conversation-rail-head > b {
+    display: grid;
+    place-items: center;
+    min-width: 27px;
+    height: 27px;
+    padding: 0 7px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    border-radius: 999px;
+    font-size: 12px;
+  }
+
+  .flame-app .rail-search {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    min-height: 46px;
+    padding: 0 12px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+
+  .flame-app .rail-search:focus-within {
+    color: var(--primary);
+    border-color: rgba(255, 63, 104, 0.42);
+  }
+
+  .flame-app .rail-search input {
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+    color: var(--fg);
+    background: transparent !important;
+    border: 0 !important;
+    outline: none;
+    font-size: 13px;
+  }
+
+  .flame-app .rail-active-section,
+  .flame-app .rail-conversation-section {
+    display: grid;
+    gap: 10px;
+  }
+
+  .flame-app .rail-section-title {
+    padding: 0 5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .flame-app .rail-active-avatars {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 2px 4px;
+    scrollbar-width: none;
+  }
+
+  .flame-app .rail-active-avatars::-webkit-scrollbar {
+    display: none;
+  }
+
+  .flame-app .rail-active-avatars button {
+    display: grid;
+    gap: 6px;
+    justify-items: center;
+    min-width: 54px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 750;
+  }
+
+  .flame-app .rail-active-avatars img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(255, 63, 104, 0.1);
+  }
+
+  .flame-app .rail-active-avatars span {
+    width: 54px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .flame-app .rail-conversation-section {
+    min-height: 0;
+  }
+
+  .flame-app .rail-chat-list {
+    display: grid;
+    gap: 7px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .flame-app .rail-chat-row {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 7px;
+    color: var(--fg);
+    border: 1px solid transparent;
+    border-radius: 16px;
+    text-align: left;
+  }
+
+  .flame-app .rail-chat-row:hover,
+  .flame-app .rail-chat-row.active {
+    background: var(--primary-soft);
+    border-color: rgba(255, 63, 104, 0.24);
+  }
+
+  .flame-app .rail-avatar {
+    position: relative;
+  }
+
+  .flame-app .rail-avatar img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 50%;
+  }
+
+  .flame-app .rail-avatar i {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    width: 12px;
+    height: 12px;
+    background: var(--success);
+    border: 2px solid var(--card-solid);
+    border-radius: 50%;
+  }
+
+  .flame-app .rail-chat-copy {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .flame-app .rail-chat-copy b,
+  .flame-app .rail-chat-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .flame-app .rail-chat-copy b {
+    font-size: 13px;
+  }
+
+  .flame-app .rail-chat-copy small {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .flame-app .rail-chat-row > em {
+    display: grid;
+    place-items: center;
+    min-width: 21px;
+    height: 21px;
+    padding: 0 6px;
+    color: #fff;
+    background: var(--primary);
+    border-radius: 999px;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 800;
+  }
+
+  .flame-app .messaging-workspace .chat-screen {
+    width: 100% !important;
+    max-width: none !important;
+    height: calc(100svh - 32px) !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    overflow: hidden;
+    background:
+      linear-gradient(155deg, rgba(255, 255, 255, 0.036), transparent 48%),
+      var(--card);
+    border: 1px solid rgba(255, 107, 154, 0.2);
+    border-radius: 25px;
+    box-shadow: 0 22px 58px rgba(0, 0, 0, 0.27);
+  }
+
+  .flame-app .messages-screen {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .flame-app .messages-inbox-layout {
+    display: grid;
+    grid-template-columns: minmax(350px, 470px) minmax(320px, 1fr);
+    gap: clamp(18px, 2.2vw, 28px);
+    align-items: start;
+    width: min(1110px, 100%);
+    margin: 0 auto;
+  }
+
+  .flame-app .messages-list-pane {
+    align-content: start;
+  }
+
+  .flame-app .messages-premium-header {
+    position: static;
+    margin: 0;
+    padding: 0 0 8px;
+    background: transparent;
+    border: 0;
+    backdrop-filter: none;
+  }
+
+  .flame-app .messages-command-card,
+  .flame-app .messages-screen .stories,
+  .flame-app .messages-screen .section-label,
+  .flame-app .messages-screen .chat-list {
+    width: 100% !important;
+    max-width: none !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  .flame-app .messages-preview-panel {
+    position: sticky;
+    top: 92px;
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    min-height: 560px;
+    padding: clamp(20px, 2.5vw, 30px);
+  }
+
+  .flame-app .messages-preview-head {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 12px 0;
+    text-align: center;
+  }
+
+  .flame-app .preview-avatar-wrap {
+    position: relative;
+    display: block;
+  }
+
+  .flame-app .preview-avatar-wrap img {
+    width: 104px;
+    height: 104px;
+    object-fit: cover;
+    border: 3px solid rgba(255, 107, 154, 0.5);
+    border-radius: 50%;
+    box-shadow: 0 0 0 8px rgba(255, 63, 104, 0.09);
+  }
+
+  .flame-app .preview-avatar-wrap i {
+    position: absolute;
+    right: 6px;
+    bottom: 8px;
+    width: 17px;
+    height: 17px;
+    background: var(--success);
+    border: 3px solid var(--card-solid);
+    border-radius: 50%;
+  }
+
+  .flame-app .messages-preview-head p {
+    margin: 10px 0 0;
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+  }
+
+  .flame-app .messages-preview-head h2 {
+    margin: 0;
+    font-size: 28px;
+  }
+
+  .flame-app .messages-preview-head small {
+    max-width: 300px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+
+  .flame-app .preview-open-chat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    min-height: 50px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  .flame-app .preview-open-chat svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .flame-app .messages-preview-last {
+    display: grid;
+    gap: 8px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid var(--border);
+    border-radius: 15px;
+  }
+
+  .flame-app .messages-preview-last span {
+    color: var(--primary);
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .flame-app .messages-preview-last p {
+    margin: 0;
+    color: var(--fg);
+    font-size: 13px;
+    line-height: 1.48;
+  }
+
+  .flame-app .messages-preview-last small {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .flame-app .messages-capability-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .flame-app .messages-capability-grid span {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    min-height: 76px;
+    place-content: center;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.045);
+    border-radius: 13px;
+    font-size: 11px;
+  }
+
+  .flame-app .messages-capability-grid svg {
+    width: 19px;
+    height: 19px;
+    color: var(--primary);
+  }
+
+  .flame-app .rooms-community-layout {
+    grid-template-columns: minmax(440px, 1fr) minmax(252px, 290px);
+    align-items: start;
+  }
+
+  .flame-app .rooms-right-panel {
+    position: sticky;
+    top: 18px;
+  }
+
+  .flame-app .profile-stat-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app .profile-about-panel {
+    grid-column: span 2;
+  }
+
+  .flame-app .profile-insights-panel {
+    grid-column: span 1;
+  }
+
+  .flame-app .settings-dashboard-head {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    align-items: center;
+  }
+}
+
+@media (max-width: 899px) {
+  .flame-app.app-mode .nav-rail-user {
+    display: none !important;
+  }
+
+  .flame-app .profile-hero-avatar {
+    width: 88px;
+    height: 88px;
+  }
+
+  .flame-app .home-community-composer {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .flame-app .rooms-right-panel {
+    margin-top: 0;
+  }
+
+  .flame-app .profile-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .flame-app .settings-dashboard-head,
+  .flame-app .settings-panel,
+  .flame-app .profile-panel {
+    padding: 16px !important;
+  }
+
+  .flame-app .settings-hero-profile {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .flame-app .rooms-hero-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .flame-app .rooms-hero-stats span {
+    min-width: 0;
+    padding: 8px;
+  }
+
+  .flame-app .profile-stat-grid,
+  .flame-app .settings-status-grid,
+  .flame-app .profile-intentions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .flame-app .profile-hero-avatar {
+    justify-self: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flame-app.app-mode :where(.nav-badge, .conversation-typing i, .room-waveform i) {
+    animation: none !important;
+  }
+}
