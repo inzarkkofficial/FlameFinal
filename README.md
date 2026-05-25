@@ -34,16 +34,25 @@ npm start       # Serves the API and the built Frontend/dist app on http://local
 
 ## Deployment Configuration
 
-The Vercel frontend calls the Render API through environment variables, rather than a URL embedded in the source code.
+The Vercel deployment includes the REST API handler in `api/[...path].js`. For normal login, Feed, Discover, and account API calls, route the frontend to its same-origin Vercel API so it does not depend on a sleeping Render web service.
 
 Set these values in Vercel for Production and Preview:
 
 ```env
-VITE_API_URL=https://your-render-service.onrender.com/api
+VITE_API_URL=/api
 VITE_SOCKET_URL=https://your-render-service.onrender.com
+VITE_REALTIME_ENABLED=false
 ```
 
-Set these values in Render:
+Vercel API/serverless environment variables:
+
+```env
+FLAME_DATASTORE=mongo
+MONGODB_URI=mongodb+srv://...
+MONGODB_DB=flame
+```
+
+Render persistent realtime service environment variables:
 
 ```env
 FLAME_DATASTORE=mongo
@@ -55,7 +64,7 @@ FRONTEND_URL=https://flamedating.vercel.app
 
 `JWT_SECRET` is not required by the current backend because authentication uses opaque, random session tokens stored in MongoDB. Cloudinary variables are not required until media storage is moved away from bounded inline persistence.
 
-The Render service must remain active for Feed, Discover, messages, and realtime features to load on the deployed Vercel site.
+Render must remain active only for Socket.IO realtime updates and call signaling configured through `VITE_SOCKET_URL`; ordinary Vercel API requests continue through `/api`. Set `VITE_REALTIME_ENABLED=true` after the persistent realtime service is active again.
 
 ## Backend
 

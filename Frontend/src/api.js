@@ -5,6 +5,7 @@ const API_URL = (configuredApiUrl || "/api").replace(/\/+$/, "");
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
   (API_URL.startsWith("http") ? API_URL.replace(/\/api\/?$/, "") : undefined);
+const REALTIME_ENABLED = String(import.meta.env.VITE_REALTIME_ENABLED || "true").toLowerCase() !== "false";
 const LEGACY_TOKEN_KEY = "flame-api-token";
 const TOKEN_KEY = "flame-api-session-token";
 const RETRY_DELAYS_MS = [900, 1800, 3200, 5200, 8000, 12000];
@@ -16,6 +17,14 @@ const inFlightGetRequests = new Map();
 
 export function invalidateApiCache() {
   getResponseCache.clear();
+}
+
+export function isRealtimeEnabled() {
+  return REALTIME_ENABLED;
+}
+
+function realtimeUnavailableError() {
+  return new Error("Realtime features are temporarily unavailable.");
 }
 
 function readStorage(storage, key = TOKEN_KEY) {
@@ -70,7 +79,7 @@ export function getRealtimeSocket() {
 export function connectRealtime() {
   const socket = getRealtimeSocket();
   socket.auth = { token: getToken() };
-  if (!socket.connected) socket.connect();
+  if (REALTIME_ENABLED && !socket.connected) socket.connect();
   return socket;
 }
 
@@ -82,6 +91,7 @@ export function disconnectRealtime() {
 }
 
 export function sendRealtimeMessage(payload) {
+  if (!REALTIME_ENABLED) return Promise.reject(realtimeUnavailableError());
   const emitMessage = (eventName, timeoutMs) =>
     new Promise((resolve, reject) => {
       const socket = connectRealtime();
@@ -106,6 +116,7 @@ export function joinRealtimeRoom(payload) {
 }
 
 function sendRealtimeAction(eventName, payload, fallbackMessage, timeoutMs = 5000) {
+  if (!REALTIME_ENABLED) return Promise.reject(realtimeUnavailableError());
   return new Promise((resolve, reject) => {
     const socket = connectRealtime();
     socket.timeout(timeoutMs).emit(eventName, payload, (error, response) => {
@@ -143,6 +154,7 @@ export function removeRealtimeMessageForYou(payload) {
 }
 
 export function sendRealtimeTyping(payload) {
+  if (!REALTIME_ENABLED) return;
   const socket = connectRealtime();
   socket.emit("typing:update", payload);
 }
@@ -159,6 +171,7 @@ export function createLiveKitCallToken(payload) {
 }
 
 export function markRealtimeConversationRead(payload) {
+  if (!REALTIME_ENABLED) return Promise.reject(realtimeUnavailableError());
   return new Promise((resolve, reject) => {
     const socket = connectRealtime();
     socket.timeout(5000).emit("conversation:read", payload, (error, response) => {
@@ -177,14 +190,6 @@ export function markRealtimeConversationRead(payload) {
 
 function wait(ms) {
   return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
-}
-
-async function wakeBackend() {
-  try {
-    await fetch(`${API_URL}/health`, { method: "GET", cache: "no-store" });
-  } catch {
-    // The retry loop below handles cold starts and temporary network misses.
-  }
 }
 
 function isRetryableStatus(status) {
@@ -232,7 +237,6 @@ export async function api(path, options = {}) {
       } catch (error) {
         lastError = error;
         if (attempt >= retryDelays.length) break;
-        await wakeBackend();
         await wait(retryDelays[attempt]);
         continue;
       }
@@ -253,7 +257,6 @@ export async function api(path, options = {}) {
       }
 
       if ((!response.ok || payload.ok === false) && isRetryableStatus(response.status) && attempt < retryDelays.length) {
-        await wakeBackend();
         await wait(retryDelays[attempt]);
         continue;
       }
@@ -261,7 +264,7 @@ export async function api(path, options = {}) {
       if (!response.ok || payload.ok === false) {
         const fallback =
           response.status >= 500
-            ? "The Flame backend is still waking up. Please try again in a moment."
+            ? "The Flame service is temporarily unavailable. Please try again."
             : "Request failed.";
         const error = new Error(payload.error || fallback);
         error.status = response.status;
@@ -276,7 +279,7 @@ export async function api(path, options = {}) {
       return payload;
     }
 
-    const error = new Error("The Flame backend is still waking up. Please try again in a moment.");
+    const error = new Error("Could not connect to Flame. Please check your connection and try again.");
     error.cause = lastError;
     throw error;
   })();

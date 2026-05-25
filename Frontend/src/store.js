@@ -6,6 +6,7 @@ import {
   editRealtimeMessage,
   getToken,
   invalidateApiCache,
+  isRealtimeEnabled,
   joinRealtimeRoom,
   jsonBody,
   markRealtimeConversationRead,
@@ -553,7 +554,7 @@ function mergeState(next, current = fallbackState) {
 function offlineError(error) {
   return error?.status === 401
     ? "Please log in again."
-    : "The Flame backend is still waking up. Please try again in a moment.";
+    : "Could not connect to Flame. Please try again.";
 }
 
 function initialState() {
@@ -776,7 +777,7 @@ export function useFlameStore() {
   }, []);
 
   useEffect(() => {
-    if (!state.auth.isAuthenticated) {
+    if (!state.auth.isAuthenticated || !isRealtimeEnabled()) {
       disconnectRealtime();
       return undefined;
     }

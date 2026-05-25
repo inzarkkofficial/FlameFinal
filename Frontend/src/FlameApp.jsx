@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
 import { profileForMatch, useFlameStore } from "./store.js";
 import { LoginPage, SignupPage } from "./AuthPages.jsx";
-import { api, connectRealtime, createLiveKitCallToken, sendCallSignal } from "./api.js";
+import { api, connectRealtime, createLiveKitCallToken, isRealtimeEnabled, sendCallSignal } from "./api.js";
 import { useTheme } from "./theme.jsx";
 import { AppSurface, PageFrame } from "./ui.jsx";
 import "./flame.css";
@@ -659,7 +659,7 @@ export default function FlameApp() {
   }, [activeChatMessageCount, chatWith, readConversation, state.auth.isAuthenticated]);
 
   useEffect(() => {
-    if (!state.auth.isAuthenticated) return undefined;
+    if (!state.auth.isAuthenticated || !isRealtimeEnabled()) return undefined;
 
     const socket = connectRealtime();
     const handleIncomingCallInvite = (payload) => {
